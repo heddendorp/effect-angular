@@ -14,7 +14,7 @@
 - [x] Task: Map Angular HttpClient responses and errors to Effect HTTP response types (3cf504b)
     - [ ] Write failing tests for status, headers, body parsing, and error handling
     - [ ] Implement response conversion and error mapping
-- [ ] Task: Support cancellation and abort semantics
+- [x] Task: Support cancellation and abort semantics (7811fc1)
     - [ ] Write failing tests that cancel an Effect request and assert HttpClient abort
     - [ ] Implement cancellation bridging for in-flight requests
 - [ ] Task: Conductor - User Manual Verification 'Phase 2: HttpClient Adapter Behavior' (Protocol in workflow.md)

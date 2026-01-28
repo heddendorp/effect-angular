@@ -7,7 +7,7 @@
     - [ ] Update `public-api.ts` and remove the scaffolded component exports
 - [x] Task: Conductor - User Manual Verification 'Phase 1: Library Entry Points and DI' (Protocol in workflow.md) (510c129)
 
-## Phase 2: HttpClient Adapter Behavior
+## Phase 2: HttpClient Adapter Behavior [checkpoint: e58d18d]
 - [x] Task: Map Effect HTTP requests to Angular HttpClient options (ddb6da3)
     - [ ] Write failing tests for method, headers, query params, and body mapping
     - [ ] Implement request translation logic using Angular HttpClient

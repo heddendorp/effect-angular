@@ -5,10 +5,7 @@ import * as Cause from 'effect/Cause';
 import * as Exit from 'effect/Exit';
 import * as Option from 'effect/Option';
 import * as Stream from 'effect/Stream';
-import * as HttpBody from '@effect/platform/HttpBody';
-import * as HttpClientError from '@effect/platform/HttpClientError';
-import * as HttpClientRequest from '@effect/platform/HttpClientRequest';
-import * as Headers from '@effect/platform/Headers';
+import { Headers, HttpBody, HttpClientError, HttpClientRequest } from '@effect/platform';
 import * as Effect from 'effect/Effect';
 
 import { EFFECT_HTTP_CLIENT, provideEffectHttpClient } from './effect-http-client';

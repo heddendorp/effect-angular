@@ -4,11 +4,13 @@ import {
   HttpHeaders,
   HttpResponse,
 } from '@angular/common/http';
-import * as EffectHttpClient from '@effect/platform/HttpClient';
-import * as HttpBody from '@effect/platform/HttpBody';
-import * as HttpClientError from '@effect/platform/HttpClientError';
-import * as HttpClientResponse from '@effect/platform/HttpClientResponse';
-import type * as HttpClientRequest from '@effect/platform/HttpClientRequest';
+import {
+  HttpBody,
+  HttpClient as EffectHttpClient,
+  HttpClientError,
+  type HttpClientRequest,
+  HttpClientResponse,
+} from '@effect/platform';
 import * as Effect from 'effect/Effect';
 import * as Stream from 'effect/Stream';
 

@@ -52,6 +52,7 @@ describe('Effect HTTP client provider', () => {
 describe('Angular HttpClient adapter request mapping', () => {
   let adapter: ReturnType<typeof createAngularHttpClient>;
   let controller: HttpTestingController;
+  // Helper to accommodate async Effect work before the HttpTestingController sees the request.
   const waitForRequest = async (
     matchFn: (req: HttpRequest<unknown>) => boolean,
   ): Promise<ReturnType<HttpTestingController['match']>[number]> => {

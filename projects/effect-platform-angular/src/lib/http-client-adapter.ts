@@ -12,6 +12,7 @@ import type * as HttpClientRequest from '@effect/platform/HttpClientRequest';
 import * as Effect from 'effect/Effect';
 import * as Stream from 'effect/Stream';
 
+// Convert Effect stream bodies into a single Uint8Array payload for HttpClient.
 const collectStreamBody = (
   request: HttpClientRequest.HttpClientRequest,
   body: HttpBody.Stream,
@@ -35,6 +36,7 @@ const appendChunk = (acc: Uint8Array, chunk: Uint8Array): Uint8Array => {
   return next;
 };
 
+// Normalize Effect request bodies into something HttpClient can send.
 const resolveBody = (
   request: HttpClientRequest.HttpClientRequest,
 ): Effect.Effect<unknown, HttpClientError.RequestError> => {
@@ -53,6 +55,7 @@ const resolveBody = (
   }
 };
 
+// Preserve repeated response headers for the Fetch Response conversion.
 const toHeaderEntries = (headers: HttpHeaders): Array<[string, string]> => {
   const entries: Array<[string, string]> = [];
   for (const name of headers.keys()) {
@@ -67,6 +70,7 @@ const toHeaderEntries = (headers: HttpHeaders): Array<[string, string]> => {
   return entries;
 };
 
+// Reuse the Effect response helpers by adapting HttpClient responses to Fetch Response.
 const toEffectResponse = (
   request: HttpClientRequest.HttpClientRequest,
   response: HttpResponse<ArrayBuffer>,
@@ -95,6 +99,7 @@ export const createAngularHttpClient = (httpClient: AngularHttpClient): EffectHt
           .subscribe({
             next: (response) => resume(Effect.succeed(toEffectResponse(request, response))),
             error: (cause) => {
+              // HttpClient reports non-2xx statuses as HttpErrorResponse; map them into a response.
               if (cause instanceof HttpErrorResponse && cause.status !== 0) {
                 const response = new HttpResponse<ArrayBuffer>({
                   body: (cause.error as ArrayBuffer | null) ?? null,
@@ -119,6 +124,7 @@ export const createAngularHttpClient = (httpClient: AngularHttpClient): EffectHt
             },
           });
 
+        // Abort signals should cancel the in-flight HttpClient request.
         const abort = () => {
           subscription.unsubscribe();
         };

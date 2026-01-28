@@ -1,63 +1,113 @@
-# EffectPlatformAngular
+# effect-platform-angular
 
-This project was generated using [Angular CLI](https://github.com/angular/angular-cli) version 21.1.0.
+Angular HttpClient adapter for Effect Platform. Use it to run Effect HttpClient requests with Angular's HttpClient and to power Effect RPC protocol layers in Angular apps.
 
-## Code scaffolding
+## Quickstart
 
-Angular CLI includes powerful code scaffolding tools. To generate a new component, run:
-
-```bash
-ng generate component component-name
-```
-
-For a complete list of available schematics (such as `components`, `directives`, or `pipes`), run:
+### Install
 
 ```bash
-ng generate --help
+npm install effect-platform-angular @effect/platform effect
 ```
-
-## Building
-
-To build the library, run:
 
 ```bash
-ng build effect-platform-angular
+bun add effect-platform-angular @effect/platform effect
 ```
 
-This command will compile your project, and the build artifacts will be placed in the `dist/` directory.
+### Register the adapter
 
-### Publishing the Library
+```ts
+import { provideHttpClient } from '@angular/common/http';
+import { bootstrapApplication } from '@angular/platform-browser';
+import { provideEffectHttpClient } from 'effect-platform-angular';
 
-Once the project is built, you can publish your library by following these steps:
+import { AppComponent } from './app/app.component';
 
-1. Navigate to the `dist` directory:
-   ```bash
-   cd dist/effect-platform-angular
-   ```
-
-2. Run the `npm publish` command to publish your library to the npm registry:
-   ```bash
-   npm publish
-   ```
-
-## Running unit tests
-
-To execute unit tests with the [Karma](https://karma-runner.github.io) test runner, use the following command:
-
-```bash
-ng test
+bootstrapApplication(AppComponent, {
+  providers: [provideHttpClient(), provideEffectHttpClient()],
+});
 ```
 
-## Running end-to-end tests
+### Use the adapter in a service
 
-For end-to-end (e2e) testing, run:
+```ts
+import { inject, Injectable } from '@angular/core';
+import { HttpClient } from '@effect/platform';
+import * as Effect from 'effect/Effect';
+import { EFFECT_HTTP_CLIENT } from 'effect-platform-angular';
 
-```bash
-ng e2e
+@Injectable({ providedIn: 'root' })
+export class ProfileService {
+  private readonly httpClient = inject(EFFECT_HTTP_CLIENT);
+
+  fetchProfile(id: string) {
+    const request = HttpClient.get(`https://api.example.com/users/${id}`).pipe(
+      Effect.provideService(HttpClient.HttpClient, this.httpClient),
+      Effect.flatMap((response) => response.json),
+    );
+
+    return Effect.runPromise(request);
+  }
+}
 ```
 
-Angular CLI does not come with an end-to-end testing framework by default. You can choose one that suits your needs.
+## Concepts
 
-## Additional Resources
+- Adapter boundaries: `provideEffectHttpClient()` exposes an Effect HttpClient backed by Angular HttpClient.
+- Request mapping: `HttpBody` values become Angular request bodies; stream bodies are buffered into a `Uint8Array`.
+- Response mapping: non-2xx HTTP responses are returned as `HttpClientResponse` values, while transport failures map to `HttpClientError.RequestError`.
+- Cancellation: canceling an Effect fiber aborts the underlying HttpClient subscription.
+- DI + Effect: inject `EFFECT_HTTP_CLIENT` and provide it to Effect with `Effect.provideService(HttpClient.HttpClient, client)`.
 
-For more information on using the Angular CLI, including detailed command references, visit the [Angular CLI Overview and Command Reference](https://angular.dev/tools/cli) page.
+## Effect RPC (minimal example)
+
+This example shows the intended path for using Effect RPC over HTTP with Angular. It assumes you have a server exposing the Effect RPC HTTP protocol at `/rpc` and that `@effect/rpc` is installed in your app.
+
+```ts
+import { inject, Injectable } from '@angular/core';
+import { HttpClient } from '@effect/platform';
+import { Rpc, RpcClient, RpcGroup, RpcSerialization } from '@effect/rpc';
+import * as Effect from 'effect/Effect';
+import * as Layer from 'effect/Layer';
+import * as Schema from 'effect/Schema';
+import { EFFECT_HTTP_CLIENT } from 'effect-platform-angular';
+
+const Ping = Rpc.make('Ping', {
+  payload: Schema.Struct({ message: Schema.String }),
+  success: Schema.Struct({ reply: Schema.String }),
+});
+
+export class AppRpcs extends RpcGroup.make(Ping) {}
+
+@Injectable({ providedIn: 'root' })
+export class RpcExampleService {
+  private readonly httpClient = inject(EFFECT_HTTP_CLIENT);
+  private readonly rpcLayer = Layer.mergeAll(
+    RpcSerialization.layerJson,
+    Layer.succeed(HttpClient.HttpClient, this.httpClient),
+    RpcClient.layerProtocolHttp({ url: '/rpc' }),
+  );
+
+  ping(message: string) {
+    const program = Effect.gen(function* () {
+      const client = yield* RpcClient.make(AppRpcs);
+      return yield* client.Ping({ message });
+    }).pipe(Effect.provide(this.rpcLayer));
+
+    return Effect.runPromise(program);
+  }
+}
+```
+
+## API reference
+
+### Providers
+
+- `provideEffectHttpClient(): EnvironmentProviders` - registers the Angular HttpClient adapter.
+- `EFFECT_HTTP_CLIENT: InjectionToken<HttpClient.HttpClient>` - the adapter instance to inject and provide to Effect.
+
+## Compatibility
+
+- Angular 21+
+- `@effect/platform` 0.94+
+- `effect` 3.19+

@@ -29,4 +29,5 @@
     - [ ] Add or adjust tests that cover the exported API surface
     - [ ] Confirm the package builds cleanly with the new exports
 - [x] Task: Add tests for the Effect RPC documentation example (fe4be95)
+- [x] Task: Remove Node dependency from the RPC example test (0d3e5df)
 - [~] Task: Conductor - User Manual Verification 'Phase 3: Documentation and Readiness' (Protocol in workflow.md)

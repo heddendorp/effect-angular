@@ -61,7 +61,7 @@ export class ProfileService {
 
 ## Effect RPC (minimal example)
 
-This example shows the intended path for using Effect RPC over HTTP with Angular. It assumes you have a server exposing the Effect RPC HTTP protocol at `/rpc` and that `@effect/rpc` is installed in your app.
+This example shows the intended path for using Effect RPC over HTTP with Angular. It assumes you have a server exposing the Effect RPC HTTP protocol at `/rpc` and that `@effect/rpc` is installed in your app. The Angular service is the boundary where you stop Effect-style handling and return Promises to components.
 
 ```ts
 import { inject, Injectable } from '@angular/core';
@@ -80,7 +80,7 @@ const Ping = Rpc.make('Ping', {
 export class AppRpcs extends RpcGroup.make(Ping) {}
 
 @Injectable({ providedIn: 'root' })
-export class RpcExampleService {
+export class AppRpcClient {
   private readonly httpClient = inject(EFFECT_HTTP_CLIENT);
   private readonly rpcLayer = Layer.mergeAll(
     RpcSerialization.layerJson,
@@ -89,7 +89,7 @@ export class RpcExampleService {
     RpcClient.layerProtocolHttp({ url: '/rpc' }),
   );
 
-  ping(message: string) {
+  ping(message: string): Promise<{ reply: string }> {
     const program = Effect.gen(function* () {
       const client = yield* RpcClient.make(AppRpcs);
       return yield* client.Ping({ message });

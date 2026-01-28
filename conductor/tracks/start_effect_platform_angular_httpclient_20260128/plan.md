@@ -18,6 +18,7 @@
     - [ ] Write failing tests that cancel an Effect request and assert HttpClient abort
     - [ ] Implement cancellation bridging for in-flight requests
 - [x] Task: Add clarifying code comments for new adapter and tests (49f2b4c)
+- [x] Task: Consolidate Effect Platform imports (unify @effect/platform entries) (46f1122)
 - [~] Task: Conductor - User Manual Verification 'Phase 2: HttpClient Adapter Behavior' (Protocol in workflow.md)
 
 ## Phase 3: Documentation and Readiness

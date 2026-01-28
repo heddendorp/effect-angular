@@ -85,6 +85,7 @@ export class RpcExampleService {
   private readonly rpcLayer = Layer.mergeAll(
     RpcSerialization.layerJson,
     Layer.succeed(HttpClient.HttpClient, this.httpClient),
+    // RPC example: HTTP protocol
     RpcClient.layerProtocolHttp({ url: '/rpc' }),
   );
 

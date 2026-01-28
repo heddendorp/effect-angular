@@ -25,7 +25,7 @@
 - [x] Task: Document Angular usage and minimal Effect RPC example (fbbd323)
     - [ ] Draft quickstart and concepts sections for the adapter
     - [ ] Add a minimal documented Effect RPC usage example for Angular apps
-- [ ] Task: Validate build and public API surface
+- [x] Task: Validate build and public API surface (2111f76)
     - [ ] Add or adjust tests that cover the exported API surface
     - [ ] Confirm the package builds cleanly with the new exports
 - [ ] Task: Conductor - User Manual Verification 'Phase 3: Documentation and Readiness' (Protocol in workflow.md)

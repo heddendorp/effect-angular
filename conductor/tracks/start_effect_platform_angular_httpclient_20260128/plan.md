@@ -20,9 +20,9 @@
 - [ ] Task: Conductor - User Manual Verification 'Phase 2: HttpClient Adapter Behavior' (Protocol in workflow.md)
 
 ## Phase 3: Documentation and Readiness
-- [ ] Task: Document Angular usage and Effect RPC path
+- [ ] Task: Document Angular usage and minimal Effect RPC example
     - [ ] Draft quickstart and concepts sections for the adapter
-    - [ ] Add an Effect RPC usage snippet for Angular apps
+    - [ ] Add a minimal documented Effect RPC usage example for Angular apps
 - [ ] Task: Validate build and public API surface
     - [ ] Add or adjust tests that cover the exported API surface
     - [ ] Confirm the package builds cleanly with the new exports

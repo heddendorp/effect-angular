@@ -3,6 +3,6 @@
   "type": "feature",
   "status": "new",
   "created_at": "2026-01-28T14:21:15Z",
-  "updated_at": "2026-01-28T14:21:15Z",
-  "description": "Start effect-platform-angular with HttpClient"
+  "updated_at": "2026-01-28T14:28:00Z",
+  "description": "Start effect-platform-angular with HttpClient, including a minimal documented Effect RPC usage example"
 }

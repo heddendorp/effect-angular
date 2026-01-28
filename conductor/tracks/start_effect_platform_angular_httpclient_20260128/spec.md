@@ -1,7 +1,7 @@
-# Track Specification: Start effect-platform-angular with HttpClient
+# Track Specification: Start effect-platform-angular with HttpClient, including a minimal documented Effect RPC usage example
 
 ## Context
-The goal is to establish the `effect-platform-angular` package as the Angular-native HTTP client integration for Effect Platform. It should build on Angular's `HttpClient`, follow Angular conventions, and align with the API patterns in `effect-platform-browser`. This integration is the foundation for using Effect RPC in Angular applications.
+The goal is to establish the `effect-platform-angular` package as the Angular-native HTTP client integration for Effect Platform. It should build on Angular's `HttpClient`, follow Angular conventions, and align with the API patterns in `effect-platform-browser`. This integration is the foundation for using Effect RPC in Angular applications, with a minimal documented example to validate the intended usage.
 
 ## Goals
 - Provide a DI-friendly, Angular-idiomatic entry point for Effect Platform HTTP client usage.
@@ -23,7 +23,7 @@ The goal is to establish the `effect-platform-angular` package as the Angular-na
 
 ### Documentation
 - Add a quickstart and concepts section for using the adapter in Angular apps.
-- Include a usage snippet that shows the intended path to Effect RPC usage.
+- Include a minimal documented Effect RPC usage example showing the intended path in Angular.
 
 ### Quality
 - Unit tests cover request mapping, response mapping, and cancellation behavior.
@@ -37,4 +37,4 @@ The goal is to establish the `effect-platform-angular` package as the Angular-na
 ## Acceptance Criteria
 - `effect-platform-angular` builds successfully and exports the intended provider API.
 - Tests verify request/response translation and cancellation behavior.
-- Documentation demonstrates how Angular apps can use the adapter as the HTTP client foundation for Effect RPC.
+- Documentation demonstrates how Angular apps can use the adapter as the HTTP client foundation for Effect RPC, with a minimal example.

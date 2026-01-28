@@ -263,8 +263,9 @@ describe('Angular HttpClient adapter request mapping', () => {
     );
     const testRequest = await waitForRequest((req) => req.url === 'https://example.test/cancel');
 
-    await exitPromise;
+    const exit = await exitPromise;
 
+    expect(Exit.isFailure(exit)).toBe(true);
     expect(testRequest.cancelled).toBe(true);
   });
 });

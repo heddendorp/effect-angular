@@ -1,0 +1,8 @@
+{
+  "track_id": "start_effect_platform_angular_httpclient_20260128",
+  "type": "feature",
+  "status": "new",
+  "created_at": "2026-01-28T14:21:15Z",
+  "updated_at": "2026-01-28T14:21:15Z",
+  "description": "Start effect-platform-angular with HttpClient"
+}

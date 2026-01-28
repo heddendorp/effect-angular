@@ -11,7 +11,7 @@
 - [x] Task: Map Effect HTTP requests to Angular HttpClient options (ddb6da3)
     - [ ] Write failing tests for method, headers, query params, and body mapping
     - [ ] Implement request translation logic using Angular HttpClient
-- [ ] Task: Map Angular HttpClient responses and errors to Effect HTTP response types
+- [x] Task: Map Angular HttpClient responses and errors to Effect HTTP response types (3cf504b)
     - [ ] Write failing tests for status, headers, body parsing, and error handling
     - [ ] Implement response conversion and error mapping
 - [ ] Task: Support cancellation and abort semantics

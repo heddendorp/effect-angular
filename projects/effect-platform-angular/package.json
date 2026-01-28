@@ -2,8 +2,10 @@
   "name": "effect-platform-angular",
   "version": "0.0.1",
   "peerDependencies": {
+    "@effect/platform": "^0.94.2",
     "@angular/common": "^21.1.0",
-    "@angular/core": "^21.1.0"
+    "@angular/core": "^21.1.0",
+    "effect": "^3.19.15"
   },
   "dependencies": {
     "tslib": "^2.3.0"

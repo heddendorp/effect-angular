@@ -1,23 +1,17 @@
-import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { provideHttpClient } from '@angular/common/http';
+import { TestBed } from '@angular/core/testing';
 
-import { EffectPlatformAngular } from './effect-platform-angular';
+import { EFFECT_HTTP_CLIENT, provideEffectHttpClient } from './effect-http-client';
 
-describe('EffectPlatformAngular', () => {
-  let component: EffectPlatformAngular;
-  let fixture: ComponentFixture<EffectPlatformAngular>;
+describe('Effect HTTP client provider', () => {
+  it('registers the Effect HttpClient adapter via Angular DI', () => {
+    TestBed.configureTestingModule({
+      providers: [provideHttpClient(), provideEffectHttpClient()],
+    });
 
-  beforeEach(async () => {
-    await TestBed.configureTestingModule({
-      imports: [EffectPlatformAngular]
-    })
-    .compileComponents();
+    const client = TestBed.inject(EFFECT_HTTP_CLIENT);
 
-    fixture = TestBed.createComponent(EffectPlatformAngular);
-    component = fixture.componentInstance;
-    await fixture.whenStable();
-  });
-
-  it('should create', () => {
-    expect(component).toBeTruthy();
+    expect(client).toBeTruthy();
+    expect(typeof client.execute).toBe('function');
   });
 });

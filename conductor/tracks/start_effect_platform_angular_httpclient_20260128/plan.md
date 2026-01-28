@@ -1,7 +1,7 @@
 # Implementation Plan
 
 ## Phase 1: Library Entry Points and DI
-- [ ] Task: Define the Angular provider API for the Effect HTTP client adapter
+- [x] Task: Define the Angular provider API for the Effect HTTP client adapter (c7a9fc2)
     - [ ] Write failing tests for provider registration and injection via TestBed
     - [ ] Implement provider functions/tokens that bind Angular HttpClient to the Effect adapter
     - [ ] Update `public-api.ts` and remove the scaffolded component exports

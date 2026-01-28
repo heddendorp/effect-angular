@@ -5,7 +5,7 @@
     - [ ] Write failing tests for provider registration and injection via TestBed
     - [ ] Implement provider functions/tokens that bind Angular HttpClient to the Effect adapter
     - [ ] Update `public-api.ts` and remove the scaffolded component exports
-- [ ] Task: Conductor - User Manual Verification 'Phase 1: Library Entry Points and DI' (Protocol in workflow.md)
+- [x] Task: Conductor - User Manual Verification 'Phase 1: Library Entry Points and DI' (Protocol in workflow.md) (510c129)
 
 ## Phase 2: HttpClient Adapter Behavior
 - [ ] Task: Map Effect HTTP requests to Angular HttpClient options

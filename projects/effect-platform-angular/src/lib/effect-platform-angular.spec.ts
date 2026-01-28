@@ -8,6 +8,7 @@ import * as Stream from 'effect/Stream';
 import * as HttpBody from '@effect/platform/HttpBody';
 import * as HttpClientError from '@effect/platform/HttpClientError';
 import * as HttpClientRequest from '@effect/platform/HttpClientRequest';
+import * as Headers from '@effect/platform/Headers';
 import * as Effect from 'effect/Effect';
 
 import { EFFECT_HTTP_CLIENT, provideEffectHttpClient } from './effect-http-client';
@@ -110,6 +111,51 @@ describe('Angular HttpClient adapter request mapping', () => {
     await response;
   });
 
+  it('maps response status and headers', async () => {
+    const request = HttpClientRequest.get('https://example.test/status');
+    const responsePromise = Effect.runPromise(adapter.execute(request));
+    const testRequest = controller.expectOne((req) => req.url === 'https://example.test/status');
+
+    testRequest.flush(new ArrayBuffer(0), {
+      status: 201,
+      statusText: 'Created',
+      headers: { 'x-response': 'ok' },
+    });
+
+    const response = await responsePromise;
+    const header = Headers.get(response.headers, 'x-response');
+
+    expect(response.status).toBe(201);
+    expect(Option.isSome(header)).toBe(true);
+    if (Option.isSome(header)) {
+      expect(header.value).toBe('ok');
+    }
+  });
+
+  it('parses JSON response bodies', async () => {
+    const request = HttpClientRequest.get('https://example.test/json');
+    const responsePromise = Effect.runPromise(adapter.execute(request));
+    const testRequest = controller.expectOne((req) => req.url === 'https://example.test/json');
+    const payload = { ok: true };
+    const bodyText = JSON.stringify(payload);
+    const body = new ArrayBuffer(bodyText.length);
+    const bodyView = new Uint8Array(body);
+    for (let i = 0; i < bodyText.length; i += 1) {
+      bodyView[i] = bodyText.charCodeAt(i);
+    }
+
+    testRequest.flush(body, {
+      status: 200,
+      statusText: 'OK',
+      headers: { 'content-type': 'application/json' },
+    });
+
+    const response = await responsePromise;
+    const parsed = await Effect.runPromise(response.json);
+
+    expect(parsed).toEqual(payload);
+  });
+
   it('maps body payloads', async () => {
     const body = HttpBody.text('hello', 'text/plain');
     const request = HttpClientRequest.post('https://example.test/body', { body });
@@ -186,6 +232,27 @@ describe('Angular HttpClient adapter request mapping', () => {
       if (Option.isSome(failure)) {
         expect(failure.value).toBeInstanceOf(HttpClientError.RequestError);
       }
+    }
+  });
+
+  it('maps status errors to Effect responses', async () => {
+    const request = HttpClientRequest.get('https://example.test/status-error');
+    const responsePromise = Effect.runPromise(adapter.execute(request));
+    const testRequest = controller.expectOne((req) => req.url === 'https://example.test/status-error');
+
+    testRequest.flush(new ArrayBuffer(0), {
+      status: 500,
+      statusText: 'Server Error',
+      headers: { 'x-error': 'true' },
+    });
+
+    const response = await responsePromise;
+    const header = Headers.get(response.headers, 'x-error');
+
+    expect(response.status).toBe(500);
+    expect(Option.isSome(header)).toBe(true);
+    if (Option.isSome(header)) {
+      expect(header.value).toBe('true');
     }
   });
 

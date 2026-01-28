@@ -1,4 +1,9 @@
-import { HttpClient as AngularHttpClient, HttpHeaders, HttpResponse } from '@angular/common/http';
+import {
+  HttpClient as AngularHttpClient,
+  HttpErrorResponse,
+  HttpHeaders,
+  HttpResponse,
+} from '@angular/common/http';
 import * as EffectHttpClient from '@effect/platform/HttpClient';
 import * as HttpBody from '@effect/platform/HttpBody';
 import * as HttpClientError from '@effect/platform/HttpClientError';
@@ -89,7 +94,19 @@ export const createAngularHttpClient = (httpClient: AngularHttpClient): EffectHt
           })
           .subscribe({
             next: (response) => resume(Effect.succeed(toEffectResponse(request, response))),
-            error: (cause) =>
+            error: (cause) => {
+              if (cause instanceof HttpErrorResponse && cause.status !== 0) {
+                const response = new HttpResponse<ArrayBuffer>({
+                  body: (cause.error as ArrayBuffer | null) ?? null,
+                  headers: cause.headers,
+                  status: cause.status,
+                  statusText: cause.statusText,
+                  url: cause.url ?? undefined,
+                });
+                resume(Effect.succeed(toEffectResponse(request, response)));
+                return;
+              }
+
               resume(
                 Effect.fail(
                   new HttpClientError.RequestError({
@@ -98,7 +115,8 @@ export const createAngularHttpClient = (httpClient: AngularHttpClient): EffectHt
                     cause,
                   }),
                 ),
-              ),
+              );
+            },
           });
 
         const abort = () => {

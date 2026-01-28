@@ -17,7 +17,8 @@
 - [x] Task: Support cancellation and abort semantics (7811fc1)
     - [ ] Write failing tests that cancel an Effect request and assert HttpClient abort
     - [ ] Implement cancellation bridging for in-flight requests
-- [ ] Task: Conductor - User Manual Verification 'Phase 2: HttpClient Adapter Behavior' (Protocol in workflow.md)
+- [x] Task: Add clarifying code comments for new adapter and tests (49f2b4c)
+- [~] Task: Conductor - User Manual Verification 'Phase 2: HttpClient Adapter Behavior' (Protocol in workflow.md)
 
 ## Phase 3: Documentation and Readiness
 - [ ] Task: Document Angular usage and minimal Effect RPC example

@@ -31,6 +31,32 @@
           }
         }
       }
+    },
+    "effect-angular-query": {
+      "projectType": "library",
+      "root": "projects/effect-angular-query",
+      "sourceRoot": "projects/effect-angular-query/src",
+      "prefix": "lib",
+      "architect": {
+        "build": {
+          "builder": "@angular/build:ng-packagr",
+          "configurations": {
+            "production": {
+              "tsConfig": "projects/effect-angular-query/tsconfig.lib.prod.json"
+            },
+            "development": {
+              "tsConfig": "projects/effect-angular-query/tsconfig.lib.json"
+            }
+          },
+          "defaultConfiguration": "production"
+        },
+        "test": {
+          "builder": "@angular/build:unit-test",
+          "options": {
+            "tsConfig": "projects/effect-angular-query/tsconfig.spec.json"
+          }
+        }
+      }
     }
   }
 }

@@ -4,6 +4,9 @@
   "compileOnSave": false,
   "compilerOptions": {
     "paths": {
+      "effect-angular-query": [
+        "./dist/effect-angular-query"
+      ],
       "effect-platform-angular": [
         "./dist/effect-platform-angular"
       ]
@@ -33,6 +36,12 @@
     },
     {
       "path": "./projects/effect-platform-angular/tsconfig.spec.json"
+    },
+    {
+      "path": "./projects/effect-angular-query/tsconfig.lib.json"
+    },
+    {
+      "path": "./projects/effect-angular-query/tsconfig.spec.json"
     }
   ]
 }

@@ -61,12 +61,12 @@ export class ProfileService {
 
 ## Effect RPC (minimal example)
 
-This example shows the intended path for using Effect RPC over HTTP with Angular. It assumes you have a server exposing the Effect RPC HTTP protocol at `/rpc` and that `@effect/rpc` is installed in your app. The Angular service is the boundary where you stop Effect-style handling and return Promises to components.
+This example shows the intended path for using Effect RPC over HTTP with Angular. It assumes you have a server exposing the Effect RPC HTTP protocol at `/rpc` and that `@effect/rpc` is installed in your app. The Angular service is the boundary where you stop Effect-style handling and return Promises to components, so components can inject the client and call procedures directly.
 
 ```ts
 import { inject, Injectable } from '@angular/core';
 import { HttpClient } from '@effect/platform';
-import { Rpc, RpcClient, RpcGroup, RpcSerialization } from '@effect/rpc';
+import { Rpc, RpcClient, RpcClientError, RpcGroup, RpcSerialization } from '@effect/rpc';
 import * as Effect from 'effect/Effect';
 import * as Layer from 'effect/Layer';
 import * as Schema from 'effect/Schema';
@@ -79,36 +79,39 @@ const Ping = Rpc.make('Ping', {
 
 export class AppRpcs extends RpcGroup.make(Ping) {}
 
-type PromiseClient = {
-  Ping: (payload: { message: string }) => Promise<{ reply: string }>;
+type PromiseClient<T> = {
+  -readonly [K in keyof T]: T[K] extends (...args: infer Args) => Effect.Effect<infer A, infer _E, infer _R>
+    ? (...args: Args) => Promise<A>
+    : never;
 };
 
-const createPromiseClient = (layer: Layer.Layer<unknown, unknown, unknown>): PromiseClient =>
-  new Proxy(
-    {},
-    {
-      get: (_target, prop) => {
-        if (typeof prop !== 'string') {
-          return undefined;
-        }
-        return (payload: { message: string }) => {
-          const program = Effect.gen(function* () {
-            const client = yield* RpcClient.make(AppRpcs);
-            const method = client[prop as keyof typeof client];
-            if (typeof method !== 'function') {
-              return yield* Effect.dieMessage(`Unknown RPC method: ${prop}`);
-            }
-            return yield* method(payload);
-          }).pipe(Effect.provide(layer), Effect.scoped);
+type RawClient = RpcClient.FromGroup<typeof AppRpcs, RpcClientError.RpcClientError>;
+type AppRpcPromiseClient = PromiseClient<RawClient>;
 
-          return Effect.runPromise(program);
-        };
-      },
-    },
-  ) as PromiseClient;
+const createPromiseClient = (
+  layer: Layer.Layer<RpcClient.Protocol, never, never>,
+): AppRpcPromiseClient => {
+  const runRpc = <A, E>(call: (client: RawClient) => Effect.Effect<A, E, never>): Promise<A> => {
+    const program = Effect.flatMap(RpcClient.make(AppRpcs), call).pipe(
+      Effect.provide(layer),
+      Effect.scoped,
+    );
+
+    return Effect.runPromise(program);
+  };
+
+  const client = {} as AppRpcPromiseClient;
+  const procedureKeys = Array.from(AppRpcs.requests.keys()) as Array<keyof RawClient>;
+  for (const key of procedureKeys) {
+    client[key] = ((...args: Parameters<RawClient[typeof key]>) =>
+      runRpc((rpcClient) => rpcClient[key](...args))) as AppRpcPromiseClient[typeof key];
+  }
+
+  return client;
+};
 
 @Injectable({ providedIn: 'root' })
-export class AppRpcClient {
+export class AppRpcClient implements AppRpcPromiseClient {
   private readonly httpClient = inject(EFFECT_HTTP_CLIENT);
   private readonly rpcLayer = RpcClient.layerProtocolHttp({ url: '/rpc' }).pipe(
     Layer.provide([
@@ -117,7 +120,12 @@ export class AppRpcClient {
     ]),
   );
 
-  readonly client = createPromiseClient(this.rpcLayer);
+  readonly Ping: AppRpcPromiseClient['Ping'];
+
+  constructor() {
+    const promiseClient = createPromiseClient(this.rpcLayer);
+    this.Ping = promiseClient.Ping;
+  }
 }
 ```
 

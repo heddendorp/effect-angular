@@ -3,13 +3,15 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { Injectable, inject } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { HttpClient as EffectHttpClient } from '@effect/platform';
-import { Rpc, RpcClient, RpcGroup, RpcSerialization } from '@effect/rpc';
+import { Rpc, RpcClient, RpcClientError, RpcGroup, RpcSerialization } from '@effect/rpc';
 import * as Effect from 'effect/Effect';
 import * as Exit from 'effect/Exit';
 import * as Layer from 'effect/Layer';
 import * as Schema from 'effect/Schema';
 
 import { createAngularHttpClient } from './lib/http-client-adapter';
+
+const textDecoder = new TextDecoder();
 
 // Angular's HttpClient test harness works with ArrayBuffer; keep encoding explicit.
 const encodeText = (value: string): ArrayBuffer => {
@@ -21,19 +23,16 @@ const encodeText = (value: string): ArrayBuffer => {
   return buffer;
 };
 
-// Decode the serialized request body so assertions stay stable across adapters.
+// Normalize the serialized request body so assertions stay stable across adapters.
 const decodeBody = (body: unknown): string => {
   if (typeof body === 'string') {
     return body;
   }
-  if (body instanceof Uint8Array) {
-    return String.fromCharCode(...body);
+  if (body instanceof ArrayBuffer) {
+    return textDecoder.decode(body);
   }
   if (ArrayBuffer.isView(body)) {
-    return String.fromCharCode(...new Uint8Array(body.buffer, body.byteOffset, body.byteLength));
-  }
-  if (body instanceof ArrayBuffer) {
-    return String.fromCharCode(...new Uint8Array(body));
+    return textDecoder.decode(body);
   }
   if (body && typeof body === 'object') {
     const entries = Object.entries(body as Record<string, unknown>)
@@ -44,12 +43,13 @@ const decodeBody = (body: unknown): string => {
       for (const [key, byte] of entries) {
         bytes[Number(key)] = Number(byte);
       }
-      return String.fromCharCode(...bytes);
+      return textDecoder.decode(bytes);
     }
   }
   return JSON.stringify(body);
 };
 
+// Minimal unary RPC used by both the service and the test.
 const Ping = Rpc.make('Ping', {
   payload: Schema.Struct({ message: Schema.String }),
   success: Schema.Struct({ reply: Schema.String }),
@@ -57,10 +57,17 @@ const Ping = Rpc.make('Ping', {
 
 class AppRpcs extends RpcGroup.make(Ping) {}
 
-type PromiseClient = {
-  Ping: (payload: { message: string }) => Promise<unknown>;
+// Map Effect-returning procedures to promise-returning call sites (unary only).
+type PromiseClient<T> = {
+  -readonly [K in keyof T]: T[K] extends (...args: infer Args) => Effect.Effect<infer A, infer _E, infer _R>
+    ? (...args: Args) => Promise<A>
+    : never;
 };
 
+type RawClient = RpcClient.FromGroup<typeof AppRpcs, RpcClientError.RpcClientError>;
+type AppRpcPromiseClient = PromiseClient<RawClient>;
+
+// HttpTestingController can register requests asynchronously; poll a few ticks.
 const waitForRequest = async (
   controller: HttpTestingController,
   match: (req: HttpRequest<unknown>) => boolean,
@@ -75,44 +82,49 @@ const waitForRequest = async (
   return controller.expectOne(match);
 };
 
-const createPromiseClient = (layer: Layer.Layer<RpcClient.Protocol, never, never>): PromiseClient =>
-  new Proxy(
-    {},
-    {
-      get: (_target, prop) => {
-        if (typeof prop !== 'string') {
-          return undefined;
-        }
-        return (payload: { message: string }) => {
-          const program = Effect.gen(function* () {
-            const client = yield* RpcClient.make(AppRpcs);
-            const method = client[prop as keyof typeof client];
-            if (typeof method !== 'function') {
-              return yield* Effect.dieMessage(`Unknown RPC method: ${prop}`);
-            }
-            return yield* method(payload);
-          }).pipe(Effect.provide(layer), Effect.scoped);
+// Build a promise-based facade for unary RPC procedures in a single place.
+const createPromiseClient = (
+  layer: Layer.Layer<RpcClient.Protocol, never, never>,
+): AppRpcPromiseClient => {
+  const runRpc = <A, E>(call: (client: RawClient) => Effect.Effect<A, E, never>): Promise<A> => {
+    const program = Effect.flatMap(RpcClient.make(AppRpcs), call).pipe(
+      Effect.provide(layer),
+      Effect.scoped,
+    );
 
-          return Effect.runPromise(program);
-        };
-      },
-    },
-  ) as PromiseClient;
+    return Effect.runPromise(program);
+  };
+
+  // Use RpcGroup metadata to expose the procedures without a Proxy.
+  const client = {} as AppRpcPromiseClient;
+  const procedureKeys = Array.from(AppRpcs.requests.keys()) as Array<keyof RawClient>;
+  for (const key of procedureKeys) {
+    client[key] = ((...args: Parameters<RawClient[typeof key]>) =>
+      runRpc((rpcClient) => rpcClient[key](...args))) as AppRpcPromiseClient[typeof key];
+  }
+
+  return client;
+};
 
 @Injectable({ providedIn: 'root' })
-class RpcClientService {
+class AppRpcClient implements AppRpcPromiseClient {
   // Adapter is created once per service instance and provided to Effect at call time.
   private readonly adapter = createAngularHttpClient(inject(HttpClient));
   private readonly rpcLayer: Layer.Layer<RpcClient.Protocol, never, never> =
     RpcClient.layerProtocolHttp({ url: '/rpc' }).pipe(
-    Layer.provide([
-      RpcSerialization.layerJson,
-      Layer.succeed(EffectHttpClient.HttpClient, this.adapter),
-    ]),
-  );
+      Layer.provide([
+        RpcSerialization.layerJson,
+        Layer.succeed(EffectHttpClient.HttpClient, this.adapter),
+      ]),
+    );
 
-  // Promise boundary for Angular components: expose promise-returning procedures.
-  readonly client = createPromiseClient(this.rpcLayer);
+  // Promise boundary for Angular components: expose procedures directly on the service.
+  readonly Ping: AppRpcPromiseClient['Ping'];
+
+  constructor() {
+    const promiseClient = createPromiseClient(this.rpcLayer);
+    this.Ping = promiseClient.Ping;
+  }
 }
 
 describe('Effect RPC documentation example', () => {
@@ -121,7 +133,7 @@ describe('Effect RPC documentation example', () => {
   beforeEach(() => {
     TestBed.resetTestingModule();
     TestBed.configureTestingModule({
-      providers: [provideHttpClient(), provideHttpClientTesting(), RpcClientService],
+      providers: [provideHttpClient(), provideHttpClientTesting(), AppRpcClient],
     });
 
     controller = TestBed.inject(HttpTestingController);
@@ -133,8 +145,8 @@ describe('Effect RPC documentation example', () => {
   });
 
   it('exposes a promise-returning RPC procedure via an Angular service', async () => {
-    const service = TestBed.inject(RpcClientService);
-    const responsePromise = service.client.Ping({ message: 'ping' });
+    const service = TestBed.inject(AppRpcClient);
+    const responsePromise = service.Ping({ message: 'ping' });
 
     const testRequest = await waitForRequest(
       controller,

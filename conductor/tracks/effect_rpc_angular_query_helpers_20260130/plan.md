@@ -19,11 +19,11 @@
     - [x] Write failing tests for DI setup and config defaults
     - [x] Implement tokens/config and injectable service
     - [x] Refactor/cleanup and rerun tests
-- [ ] Task: Build per-procedure helpers + path-level invalidation utilities
-    - [ ] Write failing tests for per-procedure `queryKey`/`queryFn`/`queryOptions`
-    - [ ] Write failing tests for `pathKey`/`queryFilter` helpers
-    - [ ] Implement typed proxy helpers for procedures and path-level utilities
-    - [ ] Refactor/cleanup and rerun tests
+- [x] Task: Build per-procedure helpers + path-level invalidation utilities (3247bbc)
+    - [x] Write failing tests for per-procedure `queryKey`/`queryFn`/`queryOptions`
+    - [x] Write failing tests for `pathKey`/`queryFilter` helpers
+    - [x] Implement typed proxy helpers for procedures and path-level utilities
+    - [x] Refactor/cleanup and rerun tests
 - [ ] Task: Replace placeholder component and update public API exports
     - [ ] Write failing tests for new public API exports
     - [ ] Remove placeholder component and export new APIs

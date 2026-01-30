@@ -39,6 +39,7 @@
     "@angular/cli": "^21.1.2",
     "@angular/compiler-cli": "^21.1.0",
     "@effect/rpc": "^0.73.0",
+    "@tanstack/angular-query-experimental": "^5.90.25",
     "@vitest/coverage-v8": "^4.0.18",
     "jsdom": "^27.1.0",
     "ng-packagr": "^21.1.0",

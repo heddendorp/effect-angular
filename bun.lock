@@ -21,6 +21,7 @@
         "@angular/cli": "^21.1.2",
         "@angular/compiler-cli": "^21.1.0",
         "@effect/rpc": "^0.73.0",
+        "@tanstack/angular-query-experimental": "^5.90.25",
         "@vitest/coverage-v8": "^4.0.18",
         "jsdom": "^27.1.0",
         "ng-packagr": "^21.1.0",
@@ -473,6 +474,12 @@
     "@sigstore/verify": ["@sigstore/verify@3.1.0", "", { "dependencies": { "@sigstore/bundle": "^4.0.0", "@sigstore/core": "^3.1.0", "@sigstore/protobuf-specs": "^0.5.0" } }, "sha512-mNe0Iigql08YupSOGv197YdHpPPr+EzDZmfCgMc7RPNaZTw5aLN01nBl6CHJOh3BGtnMIj83EeN4butBchc8Ag=="],
 
     "@standard-schema/spec": ["@standard-schema/spec@1.1.0", "", {}, "sha512-l2aFy5jALhniG5HgqrD6jXLi/rUWrKvqN/qJx6yoJsgKhblVd+iqqU4RCXavm/jPityDo5TCvKMnpjKnOriy0w=="],
+
+    "@tanstack/angular-query-experimental": ["@tanstack/angular-query-experimental@5.90.25", "", { "dependencies": { "@tanstack/query-core": "5.90.20" }, "optionalDependencies": { "@tanstack/query-devtools": "5.93.0" }, "peerDependencies": { "@angular/common": ">=16.0.0", "@angular/core": ">=16.0.0" } }, "sha512-8MmtvEq83kRbwtt6NNbDAWPMOFHLxSmvhScFtdmBP/Xo5gSSzAf4JHcblQDHV/CgWIGKOp7eOa6aXDiVIK+kbw=="],
+
+    "@tanstack/query-core": ["@tanstack/query-core@5.90.20", "", {}, "sha512-OMD2HLpNouXEfZJWcKeVKUgQ5n+n3A2JFmBaScpNDUqSrQSjiveC7dKMe53uJUg1nDG16ttFPz2xfilz6i2uVg=="],
+
+    "@tanstack/query-devtools": ["@tanstack/query-devtools@5.93.0", "", {}, "sha512-+kpsx1NQnOFTZsw6HAFCW3HkKg0+2cepGtAWXjiiSOJJ1CtQpt72EE2nyZb+AjAbLRPoeRmPJ8MtQd8r8gsPdg=="],
 
     "@tufjs/canonical-json": ["@tufjs/canonical-json@2.0.0", "", {}, "sha512-yVtV8zsdo8qFHe+/3kw81dSLyF7D576A5cCFCi4X7B39tWT7SekaEFUnvnWJHz+9qO7qJTah1JbrDjWKqFtdWA=="],
 

@@ -34,4 +34,4 @@
 - [x] Task: Use RpcClient procedures in the RPC example test (5ca78af)
 - [x] Task: Simplify the RPC example test and expose a promise client directly (ca1088a)
 - [x] Task: Simplify RPC example to expose promise procedures directly on the service (930382e)
-- [ ] Task: Conductor - User Manual Verification 'Phase 3: Documentation and Readiness' (Protocol in workflow.md)
+- [x] Task: Conductor - User Manual Verification 'Phase 3: Documentation and Readiness' (Protocol in workflow.md) (befdcc1)

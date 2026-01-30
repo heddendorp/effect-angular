@@ -34,7 +34,7 @@
 - [x] Task: Update package dependencies/peerDependencies for TanStack Angular Query (0d42e9e)
     - [x] Write failing test or validation for updated public API surface
     - [x] Update `package.json`/`ng-package.json` as needed and rerun tests
-- [ ] Task: Add README usage examples and API docs
-    - [ ] Document minimal setup and `injectQuery` usage with overrides
-    - [ ] Document query key shape, keyPrefix option, and path helpers
+- [x] Task: Add README usage examples and API docs (eadd96b)
+    - [x] Document minimal setup and `injectQuery` usage with overrides
+    - [x] Document query key shape, keyPrefix option, and path helpers
 - [ ] Task: Conductor - User Manual Verification 'Phase 3: Packaging + docs' (Protocol in workflow.md)

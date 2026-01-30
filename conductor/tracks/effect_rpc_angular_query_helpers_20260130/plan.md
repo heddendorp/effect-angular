@@ -8,10 +8,10 @@
     - [x] Write failing tests for `queryKey` shape (path segments, input, keyPrefix)
     - [x] Implement query key builder and helper types
     - [x] Refactor/cleanup and rerun tests
-- [ ] Task: Implement query options factory (queryFn + metadata + overrides)
-    - [ ] Write failing tests for `queryOptions` output (queryKey, queryFn, metadata, override merge)
-    - [ ] Implement query options factory and `rpc` metadata attachment
-    - [ ] Refactor/cleanup and rerun tests
+- [x] Task: Implement query options factory (queryFn + metadata + overrides) (e785f29)
+    - [x] Write failing tests for `queryOptions` output (queryKey, queryFn, metadata, override merge)
+    - [x] Implement query options factory and `rpc` metadata attachment
+    - [x] Refactor/cleanup and rerun tests
 - [ ] Task: Conductor - User Manual Verification 'Phase 1: Core query key + options utilities' (Protocol in workflow.md)
 
 ## Phase 2: Angular integration + typed helpers

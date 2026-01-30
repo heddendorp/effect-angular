@@ -82,18 +82,18 @@ export class AppRpcs extends RpcGroup.make(Ping) {}
 @Injectable({ providedIn: 'root' })
 export class AppRpcClient {
   private readonly httpClient = inject(EFFECT_HTTP_CLIENT);
-  private readonly rpcLayer = Layer.mergeAll(
-    RpcSerialization.layerJson,
-    Layer.succeed(HttpClient.HttpClient, this.httpClient),
-    // RPC example: HTTP protocol
-    RpcClient.layerProtocolHttp({ url: '/rpc' }),
+  private readonly rpcLayer = RpcClient.layerProtocolHttp({ url: '/rpc' }).pipe(
+    Layer.provide([
+      RpcSerialization.layerJson,
+      Layer.succeed(HttpClient.HttpClient, this.httpClient),
+    ]),
   );
 
   ping(message: string): Promise<{ reply: string }> {
     const program = Effect.gen(function* () {
       const client = yield* RpcClient.make(AppRpcs);
       return yield* client.Ping({ message });
-    }).pipe(Effect.provide(this.rpcLayer));
+    }).pipe(Effect.provide(this.rpcLayer), Effect.scoped);
 
     return Effect.runPromise(program);
   }

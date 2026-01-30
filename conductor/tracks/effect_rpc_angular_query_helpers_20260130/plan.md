@@ -24,10 +24,10 @@
     - [x] Write failing tests for `pathKey`/`queryFilter` helpers
     - [x] Implement typed proxy helpers for procedures and path-level utilities
     - [x] Refactor/cleanup and rerun tests
-- [ ] Task: Replace placeholder component and update public API exports
-    - [ ] Write failing tests for new public API exports
-    - [ ] Remove placeholder component and export new APIs
-    - [ ] Refactor/cleanup and rerun tests
+- [x] Task: Replace placeholder component and update public API exports (d3a87b8)
+    - [x] Write failing tests for new public API exports
+    - [x] Remove placeholder component and export new APIs
+    - [x] Refactor/cleanup and rerun tests
 - [ ] Task: Conductor - User Manual Verification 'Phase 2: Angular integration + typed helpers' (Protocol in workflow.md)
 
 ## Phase 3: Packaging + docs

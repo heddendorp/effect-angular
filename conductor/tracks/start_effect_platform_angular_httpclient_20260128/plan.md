@@ -21,7 +21,7 @@
 - [x] Task: Consolidate Effect Platform imports (unify @effect/platform entries) (46f1122)
 - [x] Task: Conductor - User Manual Verification 'Phase 2: HttpClient Adapter Behavior' (Protocol in workflow.md) (e58d18d)
 
-## Phase 3: Documentation and Readiness
+## Phase 3: Documentation and Readiness [checkpoint: ae3b9a9]
 - [x] Task: Document Angular usage and minimal Effect RPC example (fbbd323)
     - [ ] Draft quickstart and concepts sections for the adapter
     - [ ] Add a minimal documented Effect RPC usage example for Angular apps

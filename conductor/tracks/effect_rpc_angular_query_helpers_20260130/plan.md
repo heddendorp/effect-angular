@@ -28,7 +28,7 @@
     - [x] Write failing tests for new public API exports
     - [x] Remove placeholder component and export new APIs
     - [x] Refactor/cleanup and rerun tests
-- [ ] Task: Conductor - User Manual Verification 'Phase 2: Angular integration + typed helpers' (Protocol in workflow.md)
+- [x] Task: Conductor - User Manual Verification 'Phase 2: Angular integration + typed helpers' (Protocol in workflow.md) (906548e)
 
 ## Phase 3: Packaging + docs
 - [ ] Task: Update package dependencies/peerDependencies for TanStack Angular Query

@@ -14,7 +14,7 @@
     - [x] Refactor/cleanup and rerun tests
 - [x] Task: Conductor - User Manual Verification 'Phase 1: Core query key + options utilities' (Protocol in workflow.md) (49b0ef6)
 
-## Phase 2: Angular integration + typed helpers
+## Phase 2: Angular integration + typed helpers [checkpoint: 61b2348]
 - [x] Task: Create Angular DI config and injectable helper service (c72c9e1)
     - [x] Write failing tests for DI setup and config defaults
     - [x] Implement tokens/config and injectable service

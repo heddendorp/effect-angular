@@ -12,7 +12,7 @@
     - [x] Write failing tests for `queryOptions` output (queryKey, queryFn, metadata, override merge)
     - [x] Implement query options factory and `rpc` metadata attachment
     - [x] Refactor/cleanup and rerun tests
-- [ ] Task: Conductor - User Manual Verification 'Phase 1: Core query key + options utilities' (Protocol in workflow.md)
+- [x] Task: Conductor - User Manual Verification 'Phase 1: Core query key + options utilities' (Protocol in workflow.md) (49b0ef6)
 
 ## Phase 2: Angular integration + typed helpers
 - [ ] Task: Create Angular DI config and injectable helper service

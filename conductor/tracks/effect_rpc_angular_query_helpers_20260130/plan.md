@@ -2,12 +2,12 @@
 
 ## Phase 1: Core query key + options utilities
 - [x] Task: Review `injectQuery` expectations in `@tanstack/angular-query-experimental` and confirm the options shape (4923c25)
-    - [ ] Inspect types for `injectQuery` and `queryOptions` (if available)
-    - [ ] Define adapter types for query options and queryFn compatibility
-- [ ] Task: Implement query key helpers (path segments + input + optional keyPrefix)
-    - [ ] Write failing tests for `queryKey` shape (path segments, input, keyPrefix)
-    - [ ] Implement query key builder and helper types
-    - [ ] Refactor/cleanup and rerun tests
+    - [x] Inspect types for `injectQuery` and `queryOptions` (if available)
+    - [x] Define adapter types for query options and queryFn compatibility
+- [x] Task: Implement query key helpers (path segments + input + optional keyPrefix) (b16bda6)
+    - [x] Write failing tests for `queryKey` shape (path segments, input, keyPrefix)
+    - [x] Implement query key builder and helper types
+    - [x] Refactor/cleanup and rerun tests
 - [ ] Task: Implement query options factory (queryFn + metadata + overrides)
     - [ ] Write failing tests for `queryOptions` output (queryKey, queryFn, metadata, override merge)
     - [ ] Implement query options factory and `rpc` metadata attachment

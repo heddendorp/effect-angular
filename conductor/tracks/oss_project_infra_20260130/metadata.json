@@ -1,0 +1,8 @@
+{
+  "track_id": "oss_project_infra_20260130",
+  "type": "feature",
+  "status": "new",
+  "created_at": "2026-01-30T14:01:00Z",
+  "updated_at": "2026-01-30T14:01:00Z",
+  "description": "Add a root README and Knope-based release tooling with GitHub Actions, plus Dependabot and core community files for OSS readiness."
+}

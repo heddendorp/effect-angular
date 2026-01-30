@@ -3,7 +3,10 @@
   "version": "0.0.1",
   "peerDependencies": {
     "@angular/common": "^21.1.0",
-    "@angular/core": "^21.1.0"
+    "@angular/core": "^21.1.0",
+    "@effect/rpc": "^0.73.0",
+    "@tanstack/angular-query-experimental": "^5.90.25",
+    "effect": "^3.19.15"
   },
   "dependencies": {
     "tslib": "^2.3.0"

@@ -1,6 +1,6 @@
 # Implementation Plan
 
-## Phase 1: Core query key + options utilities
+## Phase 1: Core query key + options utilities [checkpoint: fb14a19]
 - [x] Task: Review `injectQuery` expectations in `@tanstack/angular-query-experimental` and confirm the options shape (4923c25)
     - [x] Inspect types for `injectQuery` and `queryOptions` (if available)
     - [x] Define adapter types for query options and queryFn compatibility

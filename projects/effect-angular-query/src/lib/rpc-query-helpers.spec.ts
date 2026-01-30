@@ -47,10 +47,10 @@ describe('EffectRpcQueryClient helpers', () => {
     const client = TestBed.inject(EffectRpcQueryClient);
     const helpers = client.helpersFor(AppRpcs);
 
-    const key = helpers['users.get'].queryKey({ id: '1' });
+    const key = helpers.users.get.queryKey({ id: '1' });
     expect(key).toEqual([['app', 'users', 'get'], { input: { id: '1' } }]);
 
-    const options = helpers['users.get'].queryOptions({ id: '1' }, { overrides: { retry: 2 } });
+    const options = helpers.users.get.queryOptions({ id: '1' }, { overrides: { retry: 2 } });
     expect(options.queryKey).toEqual([['app', 'users', 'get'], { input: { id: '1' } }]);
     expect(options.retry).toBe(2);
     expect(options.staleTime).toBe(5000);
@@ -74,8 +74,8 @@ describe('EffectRpcQueryClient helpers', () => {
 
     const client = TestBed.inject(EffectRpcQueryClient);
     const helpers = client.helpersFor(AppRpcs);
-    const queryFn = helpers['users.get'].queryFn({ id: '1' });
-    const queryKey = helpers['users.get'].queryKey({ id: '1' });
+    const queryFn = helpers.users.get.queryFn({ id: '1' });
+    const queryKey = helpers.users.get.queryKey({ id: '1' });
     const context = {
       client: new QueryClient(),
       queryKey,

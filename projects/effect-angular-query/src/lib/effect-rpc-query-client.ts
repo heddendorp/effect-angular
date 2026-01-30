@@ -40,21 +40,27 @@ export type EffectRpcQueryClientConfig<Rpcs extends Rpc.Any> = {
   readonly defaults: EffectRpcQueryClientDefaults;
 };
 
+type RpcQueryHelperFor<RpcType extends Rpc.Any> = RpcQueryHelper<
+  Rpc.PayloadConstructor<RpcType>,
+  Rpc.Success<RpcType>,
+  Rpc.ErrorExit<RpcType> | RpcClientError
+>;
+
 type RpcTag<Rpcs extends Rpc.Any> = Rpc.Tag<Rpcs>;
 
-type RpcByTag<Rpcs extends Rpc.Any, Tag extends RpcTag<Rpcs>> = Rpc.ExtractTag<Rpcs, Tag>;
+type RpcPrefix<Tag extends string> = Tag extends `${infer Prefix}.${string}` ? Prefix : never;
 
-type RpcInputByTag<Rpcs extends Rpc.Any, Tag extends RpcTag<Rpcs>> = Rpc.PayloadConstructor<
-  RpcByTag<Rpcs, Tag>
+type RpcPrefixes<Rpcs extends Rpc.Any> = RpcPrefix<RpcTag<Rpcs>>;
+
+type RpcPrefixed<Rpcs extends Rpc.Any, Prefix extends string> = Extract<
+  Rpcs,
+  { readonly _tag: `${Prefix}.${string}` }
 >;
 
-type RpcOutputByTag<Rpcs extends Rpc.Any, Tag extends RpcTag<Rpcs>> = Rpc.Success<
-  RpcByTag<Rpcs, Tag>
+type RpcNonPrefixed<Rpcs extends Rpc.Any> = Exclude<
+  Rpcs,
+  { readonly _tag: `${string}.${string}` }
 >;
-
-type RpcErrorByTag<Rpcs extends Rpc.Any, Tag extends RpcTag<Rpcs>> =
-  | Rpc.ErrorExit<RpcByTag<Rpcs, Tag>>
-  | RpcClientError;
 
 export type RpcQueryKeyOverrides = {
   readonly keyPrefix?: RpcKeyPrefix;
@@ -76,12 +82,17 @@ export type RpcQueryHelper<TInput, TQueryFnData, TError> = {
   ) => CreateQueryOptions<TQueryFnData, TError, TQueryFnData, RpcQueryKey<TInput>>;
 };
 
-export type RpcQueryHelpers<Rpcs extends Rpc.Any> = {
-  readonly [Tag in RpcTag<Rpcs>]: RpcQueryHelper<
-    RpcInputByTag<Rpcs, Tag>,
-    RpcOutputByTag<Rpcs, Tag>,
-    RpcErrorByTag<Rpcs, Tag>
-  >;
+type RpcQueryHelpersFrom<Rpcs extends Rpc.Any, Prefix extends string> = {
+  readonly [Current in Rpcs as Current['_tag'] extends `${Prefix}.${infer Method}`
+    ? Method
+    : Current['_tag']]: RpcQueryHelperFor<Current>;
+};
+
+export type RpcQueryHelpers<Rpcs extends Rpc.Any> = RpcQueryHelpersFrom<
+  RpcNonPrefixed<Rpcs>,
+  ''
+> & {
+  readonly [Prefix in RpcPrefixes<Rpcs>]: RpcQueryHelpersFrom<RpcPrefixed<Rpcs, Prefix>, Prefix>;
 };
 
 export const EFFECT_RPC_QUERY_CLIENT_CONFIG =
@@ -186,23 +197,26 @@ const createRpcQueryHelpers = <Rpcs extends Rpc.Any>(
     return helper;
   };
 
-  const proxy = new Proxy(
-    {},
-    {
-      get: (_target, prop) => {
-        if (typeof prop !== 'string') {
-          return undefined;
-        }
-        if (!group.requests.has(prop)) {
-          return undefined;
-        }
-        return getHelper(prop);
-      },
-    },
-  );
+  const root: Record<string, unknown> = {};
 
-  // Proxy returns dynamic helpers keyed by RPC tags.
-  return proxy as RpcQueryHelpers<Rpcs>;
+  for (const tag of group.requests.keys()) {
+    const helper = getHelper(tag);
+    const dotIndex = tag.indexOf('.');
+    if (dotIndex === -1) {
+      root[tag] = helper;
+      continue;
+    }
+
+    const prefix = tag.slice(0, dotIndex);
+    const method = tag.slice(dotIndex + 1);
+    const existing = root[prefix];
+    const container =
+      existing && typeof existing === 'object' ? (existing as Record<string, unknown>) : {};
+    container[method] = helper;
+    root[prefix] = container;
+  }
+
+  return root as RpcQueryHelpers<Rpcs>;
 };
 
 /**

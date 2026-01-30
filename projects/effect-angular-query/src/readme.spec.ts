@@ -12,5 +12,7 @@ describe('effect-angular-query README', () => {
     expect(readme).toContain('injectQuery');
     expect(readme).toContain('Query key');
     expect(readme).toContain('Path helpers');
+    expect(readme).toContain('Injectable helpers');
+    expect(readme).toContain('Sharing RPC contracts');
   });
 });

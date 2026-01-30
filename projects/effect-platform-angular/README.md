@@ -79,6 +79,34 @@ const Ping = Rpc.make('Ping', {
 
 export class AppRpcs extends RpcGroup.make(Ping) {}
 
+type PromiseClient = {
+  Ping: (payload: { message: string }) => Promise<{ reply: string }>;
+};
+
+const createPromiseClient = (layer: Layer.Layer<unknown, unknown, unknown>): PromiseClient =>
+  new Proxy(
+    {},
+    {
+      get: (_target, prop) => {
+        if (typeof prop !== 'string') {
+          return undefined;
+        }
+        return (payload: { message: string }) => {
+          const program = Effect.gen(function* () {
+            const client = yield* RpcClient.make(AppRpcs);
+            const method = client[prop as keyof typeof client];
+            if (typeof method !== 'function') {
+              return yield* Effect.dieMessage(`Unknown RPC method: ${prop}`);
+            }
+            return yield* method(payload);
+          }).pipe(Effect.provide(layer), Effect.scoped);
+
+          return Effect.runPromise(program);
+        };
+      },
+    },
+  ) as PromiseClient;
+
 @Injectable({ providedIn: 'root' })
 export class AppRpcClient {
   private readonly httpClient = inject(EFFECT_HTTP_CLIENT);
@@ -89,14 +117,7 @@ export class AppRpcClient {
     ]),
   );
 
-  ping(message: string): Promise<{ reply: string }> {
-    const program = Effect.gen(function* () {
-      const client = yield* RpcClient.make(AppRpcs);
-      return yield* client.Ping({ message });
-    }).pipe(Effect.provide(this.rpcLayer), Effect.scoped);
-
-    return Effect.runPromise(program);
-  }
+  readonly client = createPromiseClient(this.rpcLayer);
 }
 ```
 

@@ -21,19 +21,22 @@ const encodeText = (value: string): ArrayBuffer => {
   return buffer;
 };
 
-// Normalize request bodies that may be serialized as strings, buffers, or byte-like objects.
-const toByteView = (value: unknown): Uint8Array | null => {
-  if (value instanceof Uint8Array) {
-    return value;
+// Decode the serialized request body so assertions stay stable across adapters.
+const decodeBody = (body: unknown): string => {
+  if (typeof body === 'string') {
+    return body;
   }
-  if (ArrayBuffer.isView(value)) {
-    return new Uint8Array(value.buffer, value.byteOffset, value.byteLength);
+  if (body instanceof Uint8Array) {
+    return String.fromCharCode(...body);
   }
-  if (value instanceof ArrayBuffer) {
-    return new Uint8Array(value);
+  if (ArrayBuffer.isView(body)) {
+    return String.fromCharCode(...new Uint8Array(body.buffer, body.byteOffset, body.byteLength));
   }
-  if (value && typeof value === 'object') {
-    const entries = Object.entries(value as Record<string, unknown>)
+  if (body instanceof ArrayBuffer) {
+    return String.fromCharCode(...new Uint8Array(body));
+  }
+  if (body && typeof body === 'object') {
+    const entries = Object.entries(body as Record<string, unknown>)
       .filter(([key]) => String(Number(key)) === key)
       .sort(([a], [b]) => Number(a) - Number(b));
     if (entries.length > 0) {
@@ -41,20 +44,8 @@ const toByteView = (value: unknown): Uint8Array | null => {
       for (const [key, byte] of entries) {
         bytes[Number(key)] = Number(byte);
       }
-      return bytes;
+      return String.fromCharCode(...bytes);
     }
-  }
-  return null;
-};
-
-// Decode the serialized request body so assertions stay stable across adapters.
-const decodeBody = (body: unknown): string => {
-  if (typeof body === 'string') {
-    return body;
-  }
-  const bytes = toByteView(body);
-  if (bytes) {
-    return String.fromCharCode(...bytes);
   }
   return JSON.stringify(body);
 };
@@ -66,26 +57,62 @@ const Ping = Rpc.make('Ping', {
 
 class AppRpcs extends RpcGroup.make(Ping) {}
 
+type PromiseClient = {
+  Ping: (payload: { message: string }) => Promise<unknown>;
+};
+
+const waitForRequest = async (
+  controller: HttpTestingController,
+  match: (req: HttpRequest<unknown>) => boolean,
+) => {
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    const matches = controller.match(match);
+    if (matches.length > 0) {
+      return matches[0];
+    }
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  }
+  return controller.expectOne(match);
+};
+
+const createPromiseClient = (layer: Layer.Layer<RpcClient.Protocol, never, never>): PromiseClient =>
+  new Proxy(
+    {},
+    {
+      get: (_target, prop) => {
+        if (typeof prop !== 'string') {
+          return undefined;
+        }
+        return (payload: { message: string }) => {
+          const program = Effect.gen(function* () {
+            const client = yield* RpcClient.make(AppRpcs);
+            const method = client[prop as keyof typeof client];
+            if (typeof method !== 'function') {
+              return yield* Effect.dieMessage(`Unknown RPC method: ${prop}`);
+            }
+            return yield* method(payload);
+          }).pipe(Effect.provide(layer), Effect.scoped);
+
+          return Effect.runPromise(program);
+        };
+      },
+    },
+  ) as PromiseClient;
+
 @Injectable({ providedIn: 'root' })
 class RpcClientService {
   // Adapter is created once per service instance and provided to Effect at call time.
   private readonly adapter = createAngularHttpClient(inject(HttpClient));
-  private readonly rpcLayer = RpcClient.layerProtocolHttp({ url: '/rpc' }).pipe(
+  private readonly rpcLayer: Layer.Layer<RpcClient.Protocol, never, never> =
+    RpcClient.layerProtocolHttp({ url: '/rpc' }).pipe(
     Layer.provide([
       RpcSerialization.layerJson,
       Layer.succeed(EffectHttpClient.HttpClient, this.adapter),
     ]),
   );
 
-  // Promise boundary for Angular components: keep Effect internals inside the service.
-  ping(message: string) {
-    const program = Effect.gen(function* () {
-      const client = yield* RpcClient.make(AppRpcs);
-      return yield* client.Ping({ message });
-    }).pipe(Effect.provide(this.rpcLayer), Effect.scoped);
-
-    return Effect.runPromise(program);
-  }
+  // Promise boundary for Angular components: expose promise-returning procedures.
+  readonly client = createPromiseClient(this.rpcLayer);
 }
 
 describe('Effect RPC documentation example', () => {
@@ -107,21 +134,12 @@ describe('Effect RPC documentation example', () => {
 
   it('exposes a promise-returning RPC procedure via an Angular service', async () => {
     const service = TestBed.inject(RpcClientService);
-    // The service returns a Promise so components can consume it without Effect APIs.
-    const responsePromise = service.ping('ping');
+    const responsePromise = service.client.Ping({ message: 'ping' });
 
-    const testRequest = await (async () => {
-      const match = (req: HttpRequest<unknown>) =>
-        req.url.endsWith('/rpc') && req.method === 'POST';
-      for (let attempt = 0; attempt < 5; attempt += 1) {
-        const matches = controller.match(match);
-        if (matches.length > 0) {
-          return matches[0];
-        }
-        await new Promise((resolve) => setTimeout(resolve, 0));
-      }
-      return controller.expectOne(match);
-    })();
+    const testRequest = await waitForRequest(
+      controller,
+      (req) => req.url.endsWith('/rpc') && req.method === 'POST',
+    );
 
     // Confirm the client sends JSON over the HTTP RPC protocol endpoint.
     expect(testRequest.request.headers.get('content-type')).toBe('application/json');

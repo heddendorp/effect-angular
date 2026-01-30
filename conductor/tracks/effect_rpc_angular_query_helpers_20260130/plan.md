@@ -30,7 +30,7 @@
     - [x] Refactor/cleanup and rerun tests
 - [x] Task: Conductor - User Manual Verification 'Phase 2: Angular integration + typed helpers' (Protocol in workflow.md) (906548e)
 
-## Phase 3: Packaging + docs
+## Phase 3: Packaging + docs [checkpoint: df9157f]
 - [x] Task: Update package dependencies/peerDependencies for TanStack Angular Query (0d42e9e)
     - [x] Write failing test or validation for updated public API surface
     - [x] Update `package.json`/`ng-package.json` as needed and rerun tests

@@ -100,9 +100,13 @@ ready-to-use object.
 ```ts
 import { InjectionToken, inject } from '@angular/core';
 
+import * as RpcGroup from '@effect/rpc/RpcGroup';
+
 import { EffectRpcQueryClient, RpcQueryHelpers } from 'effect-angular-query';
 
-export const APP_QUERY_HELPERS = new InjectionToken<RpcQueryHelpers<AppRpcs>>(
+export const APP_QUERY_HELPERS = new InjectionToken<
+  RpcQueryHelpers<RpcGroup.Rpcs<typeof AppRpcs>>
+>(
   'APP_QUERY_HELPERS',
 );
 

@@ -32,4 +32,5 @@
 - [x] Task: Remove Node dependency from the RPC example test (0d3e5df)
 - [x] Task: Refine RPC example DX with injectable service returning promises (f80c0a6)
 - [x] Task: Use RpcClient procedures in the RPC example test (5ca78af)
+- [x] Task: Simplify the RPC example test and expose a promise client directly (ca1088a)
 - [~] Task: Conductor - User Manual Verification 'Phase 3: Documentation and Readiness' (Protocol in workflow.md)

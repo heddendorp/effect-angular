@@ -1,0 +1,40 @@
+# Implementation Plan
+
+## Phase 1: Core query key + options utilities
+- [~] Task: Review `injectQuery` expectations in `@tanstack/angular-query-experimental` and confirm the options shape
+    - [ ] Inspect types for `injectQuery` and `queryOptions` (if available)
+    - [ ] Define adapter types for query options and queryFn compatibility
+- [ ] Task: Implement query key helpers (path segments + input + optional keyPrefix)
+    - [ ] Write failing tests for `queryKey` shape (path segments, input, keyPrefix)
+    - [ ] Implement query key builder and helper types
+    - [ ] Refactor/cleanup and rerun tests
+- [ ] Task: Implement query options factory (queryFn + metadata + overrides)
+    - [ ] Write failing tests for `queryOptions` output (queryKey, queryFn, metadata, override merge)
+    - [ ] Implement query options factory and `rpc` metadata attachment
+    - [ ] Refactor/cleanup and rerun tests
+- [ ] Task: Conductor - User Manual Verification 'Phase 1: Core query key + options utilities' (Protocol in workflow.md)
+
+## Phase 2: Angular integration + typed helpers
+- [ ] Task: Create Angular DI config and injectable helper service
+    - [ ] Write failing tests for DI setup and config defaults
+    - [ ] Implement tokens/config and injectable service
+    - [ ] Refactor/cleanup and rerun tests
+- [ ] Task: Build per-procedure helpers + path-level invalidation utilities
+    - [ ] Write failing tests for per-procedure `queryKey`/`queryFn`/`queryOptions`
+    - [ ] Write failing tests for `pathKey`/`queryFilter` helpers
+    - [ ] Implement typed proxy helpers for procedures and path-level utilities
+    - [ ] Refactor/cleanup and rerun tests
+- [ ] Task: Replace placeholder component and update public API exports
+    - [ ] Write failing tests for new public API exports
+    - [ ] Remove placeholder component and export new APIs
+    - [ ] Refactor/cleanup and rerun tests
+- [ ] Task: Conductor - User Manual Verification 'Phase 2: Angular integration + typed helpers' (Protocol in workflow.md)
+
+## Phase 3: Packaging + docs
+- [ ] Task: Update package dependencies/peerDependencies for TanStack Angular Query
+    - [ ] Write failing test or validation for updated public API surface
+    - [ ] Update `package.json`/`ng-package.json` as needed and rerun tests
+- [ ] Task: Add README usage examples and API docs
+    - [ ] Document minimal setup and `injectQuery` usage with overrides
+    - [ ] Document query key shape, keyPrefix option, and path helpers
+- [ ] Task: Conductor - User Manual Verification 'Phase 3: Packaging + docs' (Protocol in workflow.md)

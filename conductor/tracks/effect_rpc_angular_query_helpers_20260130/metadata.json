@@ -1,0 +1,8 @@
+{
+  "track_id": "effect_rpc_angular_query_helpers_20260130",
+  "type": "feature",
+  "status": "new",
+  "created_at": "2026-01-30T13:41:34Z",
+  "updated_at": "2026-01-30T13:41:34Z",
+  "description": "Add an integration of an Effect RPC client with @tanstack/angular-query-experimental to generate query options for injectQuery from the RPC client config"
+}

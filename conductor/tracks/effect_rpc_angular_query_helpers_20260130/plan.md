@@ -15,10 +15,10 @@
 - [x] Task: Conductor - User Manual Verification 'Phase 1: Core query key + options utilities' (Protocol in workflow.md) (49b0ef6)
 
 ## Phase 2: Angular integration + typed helpers
-- [ ] Task: Create Angular DI config and injectable helper service
-    - [ ] Write failing tests for DI setup and config defaults
-    - [ ] Implement tokens/config and injectable service
-    - [ ] Refactor/cleanup and rerun tests
+- [x] Task: Create Angular DI config and injectable helper service (c72c9e1)
+    - [x] Write failing tests for DI setup and config defaults
+    - [x] Implement tokens/config and injectable service
+    - [x] Refactor/cleanup and rerun tests
 - [ ] Task: Build per-procedure helpers + path-level invalidation utilities
     - [ ] Write failing tests for per-procedure `queryKey`/`queryFn`/`queryOptions`
     - [ ] Write failing tests for `pathKey`/`queryFilter` helpers

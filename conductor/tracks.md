@@ -8,7 +8,7 @@ This file tracks all major tracks for the project. Each track has its own detail
 
 ---
 
-- [~] **Track: Effect RPC + TanStack Angular Query helper integration**
+- [x] **Track: Effect RPC + TanStack Angular Query helper integration**
 *Link: [./tracks/effect_rpc_angular_query_helpers_20260130/](./tracks/effect_rpc_angular_query_helpers_20260130/)*
 
 ---

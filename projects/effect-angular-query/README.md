@@ -1,63 +1,143 @@
-# EffectAngularQuery
+# Effect Angular Query
 
-This project was generated using [Angular CLI](https://github.com/angular/angular-cli) version 21.1.0.
+Angular helpers for building TanStack Query `injectQuery` options from Effect RPC procedures.
 
-## Code scaffolding
-
-Angular CLI includes powerful code scaffolding tools. To generate a new component, run:
+## Installation
 
 ```bash
-ng generate component component-name
+npm install effect-angular-query @tanstack/angular-query-experimental @effect/rpc effect
 ```
 
-For a complete list of available schematics (such as `components`, `directives`, or `pipes`), run:
+Requires Angular 21+.
 
-```bash
-ng generate --help
+## Setup
+
+1) Provide TanStack Query (this package does not configure it):
+
+```ts
+import { ApplicationConfig } from '@angular/core';
+import { provideTanStackQuery, QueryClient } from '@tanstack/angular-query-experimental';
+
+export const appConfig: ApplicationConfig = {
+  providers: [provideTanStackQuery(new QueryClient())],
+};
 ```
 
-## Building
+2) Provide the Effect RPC query client helpers:
 
-To build the library, run:
+```ts
+import { ApplicationConfig } from '@angular/core';
+import * as Rpc from '@effect/rpc/Rpc';
+import * as RpcClient from '@effect/rpc/RpcClient';
+import * as RpcGroup from '@effect/rpc/RpcGroup';
+import * as Layer from 'effect/Layer';
+import * as Schema from 'effect/Schema';
 
-```bash
-ng build effect-angular-query
+import { provideEffectRpcQueryClient } from 'effect-angular-query';
+
+const GetUser = Rpc.make('users.get', {
+  payload: Schema.Struct({ id: Schema.String }),
+  success: Schema.Struct({ name: Schema.String }),
+});
+
+class AppRpcs extends RpcGroup.make(GetUser) {}
+
+// Provide the Layer<RpcClient.Protocol, never, never> from your RPC transport setup.
+const rpcLayer: Layer.Layer<RpcClient.Protocol, never, never> = createRpcLayer();
+
+export const appConfig: ApplicationConfig = {
+  providers: [
+    provideEffectRpcQueryClient({
+      group: AppRpcs,
+      rpcLayer,
+      keyPrefix: 'app',
+      defaults: { staleTime: 10_000 },
+    }),
+  ],
+};
 ```
 
-This command will compile your project, and the build artifacts will be placed in the `dist/` directory.
+`keyPrefix` and `defaults` are optional. Defaults are merged with per-call overrides.
 
-### Publishing the Library
+## Usage with `injectQuery`
 
-Once the project is built, you can publish your library by following these steps:
+```ts
+import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
+import { injectQuery } from '@tanstack/angular-query-experimental';
 
-1. Navigate to the `dist` directory:
-   ```bash
-   cd dist/effect-angular-query
-   ```
+import { EffectRpcQueryClient } from 'effect-angular-query';
 
-2. Run the `npm publish` command to publish your library to the npm registry:
-   ```bash
-   npm publish
-   ```
+@Component({
+  selector: 'app-user-details',
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  template: `
+    @if (userQuery.isPending()) {
+      <p>Loading...</p>
+    } @else if (userQuery.isError()) {
+      <p>Failed to load.</p>
+    } @else {
+      <p>{{ userQuery.data()?.name }}</p>
+    }
+  `,
+})
+export class UserDetailsComponent {
+  private readonly rpcQueryClient = inject(EffectRpcQueryClient);
+  private readonly helpers = this.rpcQueryClient.helpersFor(AppRpcs);
 
-## Running unit tests
+  readonly userId = signal('1');
 
-To execute unit tests with the [Karma](https://karma-runner.github.io) test runner, use the following command:
-
-```bash
-ng test
+  readonly userQuery = injectQuery(() =>
+    this.helpers['users.get'].queryOptions(
+      { id: this.userId() },
+      { overrides: { staleTime: 10_000 } },
+    ),
+  );
+}
 ```
 
-## Running end-to-end tests
+You can also access the `queryKey` and `queryFn` helpers directly:
 
-For end-to-end (e2e) testing, run:
-
-```bash
-ng e2e
+```ts
+const queryKey = helpers['users.get'].queryKey({ id: '1' });
+const queryFn = helpers['users.get'].queryFn({ id: '1' });
 ```
 
-Angular CLI does not come with an end-to-end testing framework by default. You can choose one that suits your needs.
+## Query key shape
 
-## Additional Resources
+The default query key shape matches the RPC path segments and includes input metadata:
 
-For more information on using the Angular CLI, including detailed command references, visit the [Angular CLI Overview and Command Reference](https://angular.dev/tools/cli) page.
+```ts
+helpers['users.get'].queryKey({ id: '1' });
+// => [['users', 'get'], { input: { id: '1' } }]
+```
+
+If `keyPrefix` is configured, it is prepended:
+
+```ts
+// keyPrefix: 'app'
+helpers['users.get'].queryKey({ id: '1' });
+// => [['app', 'users', 'get'], { input: { id: '1' } }]
+```
+
+## Path helpers
+
+Use path-level helpers to invalidate or refetch a subtree of queries:
+
+```ts
+import { inject } from '@angular/core';
+import { QueryClient } from '@tanstack/angular-query-experimental';
+
+const queryClient = inject(QueryClient);
+
+const filter = rpcQueryClient.queryFilter(['users'], { exact: false });
+queryClient.invalidateQueries(filter);
+```
+
+## API reference
+
+- `provideEffectRpcQueryClient` - registers the RPC query helper configuration.
+- `EffectRpcQueryClient` - exposes per-procedure helpers and path helpers.
+- `createRpcQueryKey` - build a query key from path segments and input.
+- `createRpcQueryOptions` - build TanStack Query options with RPC metadata.
+- `createRpcPathKey` / `createRpcQueryFilter` - path-level invalidation helpers.
+- `RpcQueryKey`, `RpcQueryOptions`, `RpcQueryFn` - helper types for typing custom wrappers.

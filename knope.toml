@@ -8,8 +8,6 @@ versioned_files = [
   "package.json",
   "projects/effect-platform-angular/package.json",
   "projects/effect-angular-query/package.json",
-  "projects/effect-platform-angular/jsr.json",
-  "projects/effect-angular-query/jsr.json",
 ]
 changelog = "CHANGELOG.md"
 
@@ -21,6 +19,10 @@ name = "prepare-release"
 
 [[workflows.steps]]
 type = "PrepareRelease"
+
+[[workflows.steps]]
+type = "Command"
+command = "node scripts/sync-jsr-versions.mjs"
 
 [[workflows.steps]]
 type = "Command"
@@ -44,6 +46,9 @@ base = "main"
 
 [workflows.steps.title]
 template = "chore: prepare release $version"
+
+[workflows.steps.body]
+template = "This PR was created by Knope. Merging it will create a new release.\n\n$changelog"
 
 [[workflows]]
 name = "release"

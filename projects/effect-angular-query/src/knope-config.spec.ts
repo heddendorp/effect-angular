@@ -21,7 +21,7 @@ describe('knope release configuration', () => {
 
     expect(existsSync(rootFile('CHANGELOG.md'))).toBe(true);
     expect(existsSync(rootFile('.changes/README.md'))).toBe(true);
-    expect(config).toContain('projects/effect-platform-angular/jsr.json');
-    expect(config).toContain('projects/effect-angular-query/jsr.json');
+    expect(config).toContain('node scripts/sync-jsr-versions.mjs');
+    expect(config).toContain('[workflows.steps.body]');
   });
 });

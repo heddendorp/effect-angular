@@ -54,6 +54,9 @@ jobs:
       - name: Validate Knope configuration
         run: knope --validate
 
+      - name: Sync JSR versions from package.json
+        run: node scripts/sync-jsr-versions.mjs
+
       - name: Publish effect-platform-angular to JSR
         working-directory: projects/effect-platform-angular
         run: npx jsr publish

@@ -59,5 +59,6 @@ You are an expert in TypeScript, Angular, and scalable web application developme
 
 - Use changesets for tracking user-facing changes.
 - Add a changeset file for each user-facing PR under `.changeset/`.
+- Use valid changeset frontmatter in each file (`effect-platform-angular` and/or `effect-angular-query` with `patch|minor|major`), then a Markdown summary body.
 - Do not rely on conventional commits alone for release notes.
 - Keep changeset summaries concise and focused on user impact.

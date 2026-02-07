@@ -38,6 +38,16 @@ bun run ng build effect-angular-query
 - Update docs when API or workflows change.
 - Use clear commit messages.
 - Include a change file in `.changeset/` for user-facing changes.
+- Use changeset frontmatter with package and change type, for example:
+  ```md
+  ---
+  effect-platform-angular: patch
+  effect-angular-query: minor
+  ---
+
+  ### Fixed
+  - Explain user-visible impact.
+  ```
 
 ## Releases
 
@@ -52,7 +62,7 @@ Release automation is managed by Knope and GitHub Actions.
 ### Standard release flow
 
 1. Merge user-facing PRs with change files under `.changeset/`.
-2. Run the **Prepare Release PR** workflow from GitHub Actions (or let it run on `main` push).
+2. Wait for Knope Bot to create/update the `knope/release` pull request.
 3. Review and merge the generated `knope/release` pull request.
 4. Verify the **Release** workflow succeeds.
 5. Confirm JSR publishes for:
@@ -64,7 +74,7 @@ Release automation is managed by Knope and GitHub Actions.
 
 1. Ensure at least one change file exists in `.changeset/`.
 2. Confirm `knope.toml` and workflow files are present.
-3. Trigger **Prepare Release PR**.
+3. Confirm `knope/release` pull request is present.
 4. Merge `knope/release`.
 5. Verify both JSR package versions are published.
 6. Verify release tag and GitHub release notes.

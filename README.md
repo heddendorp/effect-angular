@@ -79,9 +79,18 @@ bun run ng build effect-angular-query
 This repository uses Knope with GitHub Actions for release automation.
 
 - Change files live in `.changeset/` and are the source for release notes.
-- `Prepare Release PR` workflow updates/creates a `knope/release` pull request.
-- Merging `knope/release` into `main` triggers the `Release` workflow, which runs tests/builds and creates a GitHub release.
-- The `Release` workflow also publishes both libraries to JSR.
+- Each change file uses frontmatter + summary markdown, for example:
+  ```md
+  ---
+  effect-platform-angular: patch
+  effect-angular-query: minor
+  ---
+
+  ### Changed
+  - Describe user-facing impact.
+  ```
+- Knope Bot updates/creates the `knope/release` pull request from `.changeset` files.
+- Merging `knope/release` into `main` triggers the `Release` workflow, which runs tests/builds and publishes both libraries to JSR.
 
 Required repository secrets:
 
@@ -91,6 +100,6 @@ Required repository secrets:
 Manual first release bootstrap:
 
 1. Add at least one change file in `.changeset/`.
-2. Run `Prepare Release PR` from GitHub Actions.
+2. Wait for Knope Bot to create/update the `knope/release` PR.
 3. Merge the generated `knope/release` pull request.
 4. Confirm the `Release` workflow succeeds, both JSR publishes pass, and a GitHub release is created.

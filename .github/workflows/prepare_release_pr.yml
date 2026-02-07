@@ -1,11 +1,10 @@
-name: Prepare Release PR
+name: Validate Release Readiness
 
 on:
   workflow_dispatch:
 
 permissions:
-  contents: write
-  pull-requests: write
+  contents: read
   id-token: write
 
 jobs:
@@ -36,11 +35,6 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
-      - name: Configure Git identity for release commit
-        run: |
-          git config --global user.name "github-actions[bot]"
-          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
-
       - name: Dry-run JSR publish (effect-platform-angular)
         working-directory: projects/effect-platform-angular
         run: bunx jsr publish --dry-run
@@ -48,8 +42,3 @@ jobs:
       - name: Dry-run JSR publish (effect-angular-query)
         working-directory: projects/effect-angular-query
         run: bunx jsr publish --dry-run
-
-      - name: Create or update release PR branch
-        run: knope prepare-release --verbose
-        env:
-          GITHUB_TOKEN: ${{ secrets.RELEASE_PAT || secrets.GITHUB_TOKEN }}

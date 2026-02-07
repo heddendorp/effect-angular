@@ -1,66 +1,11 @@
-[github]
-owner = "heddendorp"
-repo = "effect-angular"
+[packages.effect-platform-angular]
+versioned_files = ["projects/effect-platform-angular/package.json"]
 
-[package]
-name = "effect-angular"
-versioned_files = [
-  "package.json",
-  "projects/effect-platform-angular/package.json",
-  "projects/effect-angular-query/package.json",
-]
-changelog = "CHANGELOG.md"
+[packages.effect-angular-query]
+versioned_files = ["projects/effect-angular-query/package.json"]
 
 [changes]
 ignore_conventional_commits = true
 
 [bot.releases]
 enabled = true
-
-[[workflows]]
-name = "prepare-release"
-
-[[workflows.steps]]
-type = "PrepareRelease"
-
-[[workflows.steps]]
-type = "Command"
-command = "bun scripts/sync-jsr-versions.mjs"
-
-[[workflows.steps]]
-type = "Command"
-command = "git switch -C knope/release"
-
-[[workflows.steps]]
-type = "Command"
-command = "git add ."
-
-[[workflows.steps]]
-type = "Command"
-command = "git commit -m 'chore: prepare release $version'"
-
-[[workflows.steps]]
-type = "Command"
-command = "git push --set-upstream origin knope/release --force"
-
-[[workflows.steps]]
-type = "CreatePullRequest"
-base = "main"
-
-[workflows.steps.title]
-template = "chore: prepare release $version"
-
-[workflows.steps.body]
-template = "This PR was created by Knope. Merging it will create a new release.\n\n$changelog"
-
-[[workflows]]
-name = "release"
-
-[[workflows.steps]]
-type = "Release"
-
-[[workflows]]
-name = "document-change"
-
-[[workflows.steps]]
-type = "CreateChangeFile"

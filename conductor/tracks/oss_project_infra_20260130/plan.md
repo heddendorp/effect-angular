@@ -22,7 +22,7 @@
 - [x] Task: Add Knope configuration [6a73e3e]
     - [x] Create Knope config files per bot workflow
     - [x] Configure change-file behavior and release rules
-- [ ] Task: Add GitHub Actions workflows for Knope bot flow
+- [~] Task: Add GitHub Actions workflows for Knope bot flow
     - [ ] Add workflow(s) required by Knope bot
     - [ ] Ensure permissions and branch targets align with bot flow
 - [ ] Task: Validate automation setup

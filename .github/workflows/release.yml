@@ -40,10 +40,16 @@ jobs:
           bun run ng build effect-platform-angular
           bun run ng build effect-angular-query
 
-      - name: Set up Knope
-        uses: knope-dev/action@v2.0.0
-        with:
-          version: 0.22.2
+      - name: Install Knope
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_PAT || secrets.GITHUB_TOKEN }}
+        run: |
+          gh release download knope/v0.22.2 --repo knope-dev/knope --pattern "*linux*"
+          tar -xvf knope-*.tgz
+          mv knope*/knope "$RUNNER_TEMP/knope"
+          chmod +x "$RUNNER_TEMP/knope"
+          echo "$RUNNER_TEMP" >> "$GITHUB_PATH"
+          knope --version
 
       - name: Validate Knope configuration
         run: knope --validate

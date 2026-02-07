@@ -37,7 +37,7 @@ jobs:
           mv knope*/knope "$RUNNER_TEMP/knope"
           chmod +x "$RUNNER_TEMP/knope"
           echo "$RUNNER_TEMP" >> "$GITHUB_PATH"
-          knope --version
+          "$RUNNER_TEMP/knope" --version
 
       - name: Validate Knope configuration
         run: knope --validate

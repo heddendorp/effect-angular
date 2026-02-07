@@ -1,6 +1,13 @@
 name: Validate Release Readiness
 
 on:
+  pull_request:
+    types:
+      - opened
+      - synchronize
+      - reopened
+    branches:
+      - main
   workflow_dispatch:
 
 permissions:
@@ -8,7 +15,8 @@ permissions:
   id-token: write
 
 jobs:
-  prepare-release:
+  validate-release-pr:
+    if: "${{ github.event_name == 'workflow_dispatch' || github.head_ref == 'knope/release' }}"
     runs-on: ubuntu-latest
 
     steps:
@@ -35,10 +43,18 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
-      - name: Dry-run JSR publish (effect-platform-angular)
-        working-directory: projects/effect-platform-angular
-        run: bunx jsr publish --dry-run
+      - name: Run tests
+        run: CI=true bun run test -- --watch=false
 
-      - name: Dry-run JSR publish (effect-angular-query)
-        working-directory: projects/effect-angular-query
-        run: bunx jsr publish --dry-run
+      - name: Build packages
+        run: |
+          bun run ng build effect-platform-angular
+          bun run ng build effect-angular-query
+
+      - name: Pack effect-platform-angular (dry-run)
+        working-directory: dist/effect-platform-angular
+        run: npm pack --dry-run
+
+      - name: Pack effect-angular-query (dry-run)
+        working-directory: dist/effect-angular-query
+        run: npm pack --dry-run

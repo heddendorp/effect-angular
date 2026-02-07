@@ -3,9 +3,6 @@ name: Release
 on:
   pull_request:
     types:
-      - opened
-      - synchronize
-      - reopened
       - closed
     branches:
       - main
@@ -16,44 +13,6 @@ permissions:
   id-token: write
 
 jobs:
-  validate-release-pr:
-    if: "${{ github.event_name == 'pull_request' && github.head_ref == 'knope/release' && github.event.pull_request.merged != true }}"
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@v5
-        with:
-          fetch-depth: 0
-          token: ${{ secrets.RELEASE_PAT || secrets.GITHUB_TOKEN }}
-
-      - name: Set up Bun
-        uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: '1.2.19'
-
-      - name: Install dependencies
-        run: bun install --frozen-lockfile
-
-      - name: Run tests
-        run: CI=true bun run test -- --watch=false
-
-      - name: Build packages
-        run: |
-          bun run ng build effect-platform-angular
-          bun run ng build effect-angular-query
-
-      - name: Sync JSR versions from package.json
-        run: bun scripts/sync-jsr-versions.mjs
-
-      - name: Dry-run publish effect-platform-angular to JSR
-        working-directory: projects/effect-platform-angular
-        run: bunx jsr publish --dry-run --allow-dirty
-
-      - name: Dry-run publish effect-angular-query to JSR
-        working-directory: projects/effect-angular-query
-        run: bunx jsr publish --dry-run --allow-dirty
-
   release:
     if: "${{ (github.head_ref == 'knope/release' && github.event.pull_request.merged == true) || github.event_name == 'workflow_dispatch' }}"
     runs-on: ubuntu-latest
@@ -70,6 +29,12 @@ jobs:
         with:
           bun-version: '1.2.19'
 
+      - name: Set up Node for npm publish
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          registry-url: 'https://registry.npmjs.org'
+
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
@@ -81,13 +46,14 @@ jobs:
           bun run ng build effect-platform-angular
           bun run ng build effect-angular-query
 
-      - name: Sync JSR versions from package.json
-        run: bun scripts/sync-jsr-versions.mjs
+      - name: Publish effect-platform-angular to npm
+        working-directory: dist/effect-platform-angular
+        run: npm publish --access public --provenance
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
-      - name: Publish effect-platform-angular to JSR
-        working-directory: projects/effect-platform-angular
-        run: bunx jsr publish --allow-dirty
-
-      - name: Publish effect-angular-query to JSR
-        working-directory: projects/effect-angular-query
-        run: bunx jsr publish --allow-dirty
+      - name: Publish effect-angular-query to npm
+        working-directory: dist/effect-angular-query
+        run: npm publish --access public --provenance
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

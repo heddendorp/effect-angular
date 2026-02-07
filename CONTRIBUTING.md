@@ -58,6 +58,9 @@ Release automation is managed by Knope and GitHub Actions.
 - Configure a repository secret named `RELEASE_PAT` with:
   - `contents:write`
   - `pull-requests:write`
+- Configure a repository secret named `NPM_TOKEN` with publish access to:
+  - `@heddendorp/effect-platform-angular`
+  - `@heddendorp/effect-angular-query`
 
 ### Standard release flow
 
@@ -65,10 +68,10 @@ Release automation is managed by Knope and GitHub Actions.
 2. Wait for Knope Bot to create/update the `knope/release` pull request.
 3. Review and merge the generated `knope/release` pull request.
 4. Verify the **Release** workflow succeeds.
-5. Confirm JSR publishes for:
+5. Confirm npm publishes for:
    - `@heddendorp/effect-platform-angular`
    - `@heddendorp/effect-angular-query`
-6. Confirm the new GitHub release is published.
+6. Confirm both package versions are visible on npm.
 
 ### First release checklist
 
@@ -76,8 +79,7 @@ Release automation is managed by Knope and GitHub Actions.
 2. Confirm `knope.toml` and workflow files are present.
 3. Confirm `knope/release` pull request is present.
 4. Merge `knope/release`.
-5. Verify both JSR package versions are published.
-6. Verify release tag and GitHub release notes.
+5. Verify both npm package versions are published.
 
 ## Reporting Bugs
 

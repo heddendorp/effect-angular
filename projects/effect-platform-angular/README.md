@@ -7,11 +7,11 @@ Angular HttpClient adapter for Effect Platform. Use it to run Effect HttpClient 
 ### Install
 
 ```bash
-npx jsr add @heddendorp/effect-platform-angular
+npm install @heddendorp/effect-platform-angular
 ```
 
 ```bash
-bunx jsr add @heddendorp/effect-platform-angular
+bun add @heddendorp/effect-platform-angular
 ```
 
 Install required peers in your app:

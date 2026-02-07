@@ -4,10 +4,10 @@
   "compileOnSave": false,
   "compilerOptions": {
     "paths": {
-      "effect-angular-query": [
+      "@heddendorp/effect-angular-query": [
         "./dist/effect-angular-query"
       ],
-      "effect-platform-angular": [
+      "@heddendorp/effect-platform-angular": [
         "./dist/effect-platform-angular"
       ]
     },

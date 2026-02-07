@@ -5,11 +5,11 @@ Angular helpers for building TanStack Query `injectQuery` options from Effect RP
 ## Installation
 
 ```bash
-npx jsr add @heddendorp/effect-angular-query
+npm install @heddendorp/effect-angular-query
 ```
 
 ```bash
-bunx jsr add @heddendorp/effect-angular-query
+bun add @heddendorp/effect-angular-query
 ```
 
 Install required peers in your app:

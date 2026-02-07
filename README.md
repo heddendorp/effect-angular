@@ -48,15 +48,15 @@ bun run test -- --watch=false
 | `effect-platform-angular` | Angular `HttpClient` adapter for Effect Platform HTTP/RPC transport | `projects/effect-platform-angular` |
 | `effect-angular-query` | Effect RPC to TanStack Angular Query helper layer | `projects/effect-angular-query` |
 
-JSR targets:
+npm packages:
 
 - `@heddendorp/effect-platform-angular`
 - `@heddendorp/effect-angular-query`
 
-Install from JSR:
+Install from npm:
 
 ```bash
-bunx jsr add @heddendorp/effect-platform-angular @heddendorp/effect-angular-query
+bun add @heddendorp/effect-platform-angular @heddendorp/effect-angular-query
 ```
 
 Package-specific docs:
@@ -96,16 +96,17 @@ This repository uses Knope with GitHub Actions for release automation.
   - Describe user-facing impact.
   ```
 - Knope Bot updates/creates the `knope/release` pull request from `.changeset` files.
-- Merging `knope/release` into `main` triggers the `Release` workflow, which runs tests/builds and publishes both libraries to JSR.
+- Merging `knope/release` into `main` triggers the `Release` workflow, which runs tests/builds and publishes both libraries to npm.
 
 Required repository secrets:
 
 - `RELEASE_PAT` (recommended): Personal access token with `contents:write` and `pull-requests:write`.
   The workflows fall back to `GITHUB_TOKEN`, but `RELEASE_PAT` is recommended for reliable branch/PR operations.
+- `NPM_TOKEN`: npm automation token with publish access to `@heddendorp` packages.
 
 Manual first release bootstrap:
 
 1. Add at least one change file in `.changeset/`.
 2. Wait for Knope Bot to create/update the `knope/release` PR.
 3. Merge the generated `knope/release` pull request.
-4. Confirm the `Release` workflow succeeds, both JSR publishes pass, and a GitHub release is created.
+4. Confirm the `Release` workflow succeeds and both npm packages publish successfully.

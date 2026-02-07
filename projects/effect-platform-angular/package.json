@@ -1,5 +1,5 @@
 {
-  "name": "effect-platform-angular",
+  "name": "@heddendorp/effect-platform-angular",
   "version": "0.0.3",
   "peerDependencies": {
     "@effect/platform": "^0.94.2",

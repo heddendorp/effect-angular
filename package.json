@@ -1,10 +1,10 @@
 {
   "name": "effect-angular",
-  "version": "0.0.0",
+  "version": "0.0.1",
   "scripts": {
     "ng": "ng",
     "start": "ng serve",
-    "build": "ng build",
+    "build": "ng build effect-platform-angular && ng build effect-angular-query",
     "watch": "ng build --watch --configuration development",
     "test": "ng test"
   },

@@ -1,0 +1,56 @@
+[github]
+owner = "heddendorp"
+repo = "effect-angular"
+
+[package]
+name = "effect-angular"
+versioned_files = [
+  "package.json",
+  "projects/effect-platform-angular/package.json",
+  "projects/effect-angular-query/package.json",
+]
+changelog = "CHANGELOG.md"
+
+[bot.releases]
+enabled = true
+
+[[workflows]]
+name = "prepare-release"
+
+[[workflows.steps]]
+type = "PrepareRelease"
+
+[[workflows.steps]]
+type = "Command"
+command = "git switch -C knope/release"
+
+[[workflows.steps]]
+type = "Command"
+command = "git add ."
+
+[[workflows.steps]]
+type = "Command"
+command = "git commit -m 'chore: prepare release $version'"
+
+[[workflows.steps]]
+type = "Command"
+command = "git push --set-upstream origin knope/release --force"
+
+[[workflows.steps]]
+type = "CreatePullRequest"
+base = "main"
+
+[workflows.steps.title]
+template = "chore: prepare release $version"
+
+[[workflows]]
+name = "release"
+
+[[workflows.steps]]
+type = "Release"
+
+[[workflows]]
+name = "document-change"
+
+[[workflows.steps]]
+type = "CreateChangeFile"

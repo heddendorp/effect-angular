@@ -19,7 +19,7 @@
 - [x] Task: Define Knope release workflow for this repo [7a4c4fa]
     - [x] Capture change-file strategy (location, format, expectations)
     - [x] Map bot flow details (release PR branch, trigger conditions)
-- [ ] Task: Add Knope configuration
+- [~] Task: Add Knope configuration
     - [ ] Create Knope config files per bot workflow
     - [ ] Configure change-file behavior and release rules
 - [ ] Task: Add GitHub Actions workflows for Knope bot flow

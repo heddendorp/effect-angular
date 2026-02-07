@@ -4,10 +4,10 @@
 - [x] Task: Review existing repo context for README accuracy [29d0c77]
     - [x] Inspect root `package.json` and workspace layout for package list
     - [x] Confirm current install/dev/test commands from tooling
-- [~] Task: Draft and add root README
-    - [ ] Write overview and goals aligned with `conductor/product.md`
-    - [ ] Add quickstart/setup using Bun + Angular workspace
-    - [ ] Document key packages in the monorepo
+- [x] Task: Draft and add root README [8068283]
+    - [x] Write overview and goals aligned with `conductor/product.md`
+    - [x] Add quickstart/setup using Bun + Angular workspace
+    - [x] Document key packages in the monorepo
 - [ ] Task: Add community/health files
     - [ ] Add MIT LICENSE
     - [ ] Add CODE_OF_CONDUCT

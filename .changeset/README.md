@@ -1,6 +1,6 @@
 # Change Files
 
-Every user-facing pull request should include one new file in `.changes/`.
+Every user-facing pull request should include one new file in `.changeset/`.
 
 Use markdown headings such as:
 

@@ -58,6 +58,6 @@ You are an expert in TypeScript, Angular, and scalable web application developme
 ## Release and Change Tracking
 
 - Use changesets for tracking user-facing changes.
-- Add a changeset file for each user-facing PR under `.changes/`.
+- Add a changeset file for each user-facing PR under `.changeset/`.
 - Do not rely on conventional commits alone for release notes.
 - Keep changeset summaries concise and focused on user impact.

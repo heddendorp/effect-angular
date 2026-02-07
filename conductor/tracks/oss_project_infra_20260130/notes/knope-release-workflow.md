@@ -4,10 +4,10 @@ Date: 2026-02-07
 
 ## Change-file Strategy
 
-- Location: `.changes/`
+- Location: `.changeset/`
 - Format: Markdown file using release headings such as `### Added`, `### Changed`, `### Fixed`.
 - Expectations:
-  - Every user-facing PR includes one new file in `.changes/`.
+  - Every user-facing PR includes one new file in `.changeset/`.
   - Keep entries concise and user-facing.
   - Multiple entries can be grouped in a single file when needed.
 

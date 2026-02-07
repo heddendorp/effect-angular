@@ -1,59 +1,70 @@
-# EffectAngular
+# Effect Angular
 
-This project was generated using [Angular CLI](https://github.com/angular/angular-cli) version 21.1.2.
+Effect Angular provides Angular-first integrations for Effect Platform and Effect RPC.
 
-## Development server
+## Overview
 
-To start a local development server, run:
+This workspace currently ships two Angular libraries:
 
-```bash
-ng serve
-```
+- `effect-platform-angular`: Adapter that bridges Effect Platform `HttpClient` to Angular `HttpClient`.
+- `effect-angular-query`: Helpers that build TanStack Angular Query options from Effect RPC procedures.
 
-Once the server is running, open your browser and navigate to `http://localhost:4200/`. The application will automatically reload whenever you modify any of the source files.
+## Goals
 
-## Code scaffolding
+- Keep APIs idiomatic to Angular applications.
+- Preserve strong Effect and TypeScript type-safety.
+- Minimize setup overhead for HTTP and RPC usage in Angular.
 
-Angular CLI includes powerful code scaffolding tools. To generate a new component, run:
+## Requirements
 
-```bash
-ng generate component component-name
-```
+- Node.js 22+ recommended
+- Bun `1.2.x`
+- Angular `21+`
 
-For a complete list of available schematics (such as `components`, `directives`, or `pipes`), run:
+## Quickstart
 
-```bash
-ng generate --help
-```
-
-## Building
-
-To build the project run:
+Install dependencies:
 
 ```bash
-ng build
+bun install
 ```
 
-This will compile your project and store the build artifacts in the `dist/` directory. By default, the production build optimizes your application for performance and speed.
-
-## Running unit tests
-
-To execute unit tests with the [Vitest](https://vitest.dev/) test runner, use the following command:
+Build the workspace:
 
 ```bash
-ng test
+bun run build
 ```
 
-## Running end-to-end tests
-
-For end-to-end (e2e) testing, run:
+Run tests:
 
 ```bash
-ng e2e
+bun run test -- --watch=false
 ```
 
-Angular CLI does not come with an end-to-end testing framework by default. You can choose one that suits your needs.
+## Packages
 
-## Additional Resources
+| Package | Purpose | Path |
+| --- | --- | --- |
+| `effect-platform-angular` | Angular `HttpClient` adapter for Effect Platform HTTP/RPC transport | `projects/effect-platform-angular` |
+| `effect-angular-query` | Effect RPC to TanStack Angular Query helper layer | `projects/effect-angular-query` |
 
-For more information on using the Angular CLI, including detailed command references, visit the [Angular CLI Overview and Command Reference](https://angular.dev/tools/cli) page.
+Package-specific docs:
+
+- `projects/effect-platform-angular/README.md`
+- `projects/effect-angular-query/README.md`
+
+## Development Commands
+
+Run a project-specific test target:
+
+```bash
+bun run ng test effect-platform-angular --watch=false
+bun run ng test effect-angular-query --watch=false
+```
+
+Build a specific library:
+
+```bash
+bun run ng build effect-platform-angular
+bun run ng build effect-angular-query
+```

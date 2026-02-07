@@ -49,11 +49,7 @@ jobs:
       - name: Publish effect-platform-angular to npm
         working-directory: dist/effect-platform-angular
         run: npm publish --access public --provenance
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Publish effect-angular-query to npm
         working-directory: dist/effect-angular-query
         run: npm publish --access public --provenance
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

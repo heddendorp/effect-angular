@@ -102,7 +102,10 @@ Required repository secrets:
 
 - `RELEASE_PAT` (recommended): Personal access token with `contents:write` and `pull-requests:write`.
   The workflows fall back to `GITHUB_TOKEN`, but `RELEASE_PAT` is recommended for reliable branch/PR operations.
-- `NPM_TOKEN`: npm automation token with publish access to `@heddendorp` packages.
+
+Required npm setup:
+
+- Configure both npm packages (`@heddendorp/effect-platform-angular`, `@heddendorp/effect-angular-query`) as trusted publishers linked to this GitHub repository/workflow (OIDC).
 
 Manual first release bootstrap:
 

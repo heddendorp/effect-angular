@@ -58,9 +58,10 @@ Release automation is managed by Knope and GitHub Actions.
 - Configure a repository secret named `RELEASE_PAT` with:
   - `contents:write`
   - `pull-requests:write`
-- Configure a repository secret named `NPM_TOKEN` with publish access to:
+- Configure npm trusted publishing (OIDC) for:
   - `@heddendorp/effect-platform-angular`
   - `@heddendorp/effect-angular-query`
+  linked to `heddendorp/effect-angular` release workflow.
 
 ### Standard release flow
 

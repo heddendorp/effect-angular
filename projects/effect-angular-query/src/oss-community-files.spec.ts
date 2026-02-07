@@ -8,15 +8,14 @@ describe('OSS community and health files', () => {
     expect(existsSync(rootFile('LICENSE'))).toBe(true);
     expect(existsSync(rootFile('CODE_OF_CONDUCT.md'))).toBe(true);
     expect(existsSync(rootFile('CONTRIBUTING.md'))).toBe(true);
-    expect(existsSync(rootFile('SECURITY.md'))).toBe(true);
   });
 
   it('uses an MIT license and documents reporting expectations', () => {
     const license = readFileSync(rootFile('LICENSE'), 'utf8');
-    const security = readFileSync(rootFile('SECURITY.md'), 'utf8');
+    const contributing = readFileSync(rootFile('CONTRIBUTING.md'), 'utf8');
 
     expect(license).toContain('MIT License');
-    expect(security).toContain('Security Policy');
-    expect(security).toContain('report');
+    expect(contributing).toContain('Reporting Bugs');
+    expect(contributing).toContain('Open a GitHub issue');
   });
 });

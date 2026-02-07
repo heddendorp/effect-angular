@@ -48,6 +48,11 @@ bun run test -- --watch=false
 | `effect-platform-angular` | Angular `HttpClient` adapter for Effect Platform HTTP/RPC transport | `projects/effect-platform-angular` |
 | `effect-angular-query` | Effect RPC to TanStack Angular Query helper layer | `projects/effect-angular-query` |
 
+JSR targets:
+
+- `@heddendorp/effect-platform-angular`
+- `@heddendorp/effect-angular-query`
+
 Package-specific docs:
 
 - `projects/effect-platform-angular/README.md`
@@ -76,6 +81,7 @@ This repository uses Knope with GitHub Actions for release automation.
 - Change files live in `.changes/` and are the source for release notes.
 - `Prepare Release PR` workflow updates/creates a `knope/release` pull request.
 - Merging `knope/release` into `main` triggers the `Release` workflow, which runs tests/builds and creates a GitHub release.
+- The `Release` workflow also publishes both libraries to JSR.
 
 Required repository secrets:
 
@@ -87,4 +93,4 @@ Manual first release bootstrap:
 1. Add at least one change file in `.changes/`.
 2. Run `Prepare Release PR` from GitHub Actions.
 3. Merge the generated `knope/release` pull request.
-4. Confirm the `Release` workflow succeeds and a GitHub release is created.
+4. Confirm the `Release` workflow succeeds, both JSR publishes pass, and a GitHub release is created.

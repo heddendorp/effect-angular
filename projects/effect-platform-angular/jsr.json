@@ -1,0 +1,25 @@
+{
+  "name": "@heddendorp/effect-platform-angular",
+  "version": "0.0.1",
+  "exports": "./src/public-api.ts",
+  "license": "MIT",
+  "include": [
+    "src/public-api.ts",
+    "src/lib/**/*.ts",
+    "README.md",
+    "package.json"
+  ],
+  "exclude": [
+    "**/*.spec.ts"
+  ],
+  "imports": {
+    "@angular/common": "npm:@angular/common@^21.1.0",
+    "@angular/common/": "npm:@angular/common@^21.1.0/",
+    "@angular/core": "npm:@angular/core@^21.1.0",
+    "@angular/core/": "npm:@angular/core@^21.1.0/",
+    "@effect/platform": "npm:@effect/platform@^0.94.2",
+    "@effect/platform/": "npm:@effect/platform@^0.94.2/",
+    "effect": "npm:effect@^3.19.15",
+    "effect/": "npm:effect@^3.19.15/"
+  }
+}

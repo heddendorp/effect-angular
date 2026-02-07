@@ -28,7 +28,7 @@
 - [x] Task: Validate automation setup [77ccd51]
     - [x] Sanity-check workflow YAML and config files
     - [x] Document expected release flow in README or CONTRIBUTING
-- [ ] Task: Conductor - User Manual Verification 'Phase 2: Knope Release Automation' (Protocol in workflow.md)
+- [~] Task: Conductor - User Manual Verification 'Phase 2: Knope Release Automation' (Protocol in workflow.md)
 
 ## Phase 3: Dependency Automation
 - [ ] Task: Add Dependabot configuration

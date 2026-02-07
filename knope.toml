@@ -8,6 +8,8 @@ versioned_files = [
   "package.json",
   "projects/effect-platform-angular/package.json",
   "projects/effect-angular-query/package.json",
+  "projects/effect-platform-angular/jsr.json",
+  "projects/effect-angular-query/jsr.json",
 ]
 changelog = "CHANGELOG.md"
 

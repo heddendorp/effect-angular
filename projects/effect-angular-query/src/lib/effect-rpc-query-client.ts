@@ -95,7 +95,7 @@ export type RpcQueryHelpers<Rpcs extends Rpc.Any> = RpcQueryHelpersFrom<
   readonly [Prefix in RpcPrefixes<Rpcs>]: RpcQueryHelpersFrom<RpcPrefixed<Rpcs, Prefix>, Prefix>;
 };
 
-export const EFFECT_RPC_QUERY_CLIENT_CONFIG =
+export const EFFECT_RPC_QUERY_CLIENT_CONFIG: InjectionToken<EffectRpcQueryClientConfig<Rpc.Any>> =
   new InjectionToken<EffectRpcQueryClientConfig<Rpc.Any>>('EFFECT_RPC_QUERY_CLIENT_CONFIG');
 
 /**
@@ -224,7 +224,7 @@ const createRpcQueryHelpers = <Rpcs extends Rpc.Any>(
  */
 @Injectable({ providedIn: 'root' })
 export class EffectRpcQueryClient {
-  readonly config = inject(EFFECT_RPC_QUERY_CLIENT_CONFIG);
+  readonly config: EffectRpcQueryClientConfig<Rpc.Any> = inject(EFFECT_RPC_QUERY_CLIENT_CONFIG);
 
   helpersFor<Rpcs extends Rpc.Any>(group: RpcGroup.RpcGroup<Rpcs>): RpcQueryHelpers<Rpcs> {
     // Config is bound to the same RPC group at runtime via DI.

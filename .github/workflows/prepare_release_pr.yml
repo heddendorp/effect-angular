@@ -9,6 +9,7 @@ on:
 permissions:
   contents: write
   pull-requests: write
+  id-token: write
 
 jobs:
   prepare-release:
@@ -35,8 +36,15 @@ jobs:
       - name: Validate Knope configuration
         run: knope --validate
 
+      - name: Dry-run JSR publish (effect-platform-angular)
+        working-directory: projects/effect-platform-angular
+        run: npx jsr publish --dry-run
+
+      - name: Dry-run JSR publish (effect-angular-query)
+        working-directory: projects/effect-angular-query
+        run: npx jsr publish --dry-run
+
       - name: Create or update release PR branch
         run: knope prepare-release --verbose
         env:
           GITHUB_TOKEN: ${{ secrets.RELEASE_PAT || secrets.GITHUB_TOKEN }}
-        continue-on-error: true

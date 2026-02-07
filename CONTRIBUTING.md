@@ -55,7 +55,10 @@ Release automation is managed by Knope and GitHub Actions.
 2. Run the **Prepare Release PR** workflow from GitHub Actions (or let it run on `main` push).
 3. Review and merge the generated `knope/release` pull request.
 4. Verify the **Release** workflow succeeds.
-5. Confirm the new GitHub release is published.
+5. Confirm JSR publishes for:
+   - `@heddendorp/effect-platform-angular`
+   - `@heddendorp/effect-angular-query`
+6. Confirm the new GitHub release is published.
 
 ### First release checklist
 
@@ -63,7 +66,8 @@ Release automation is managed by Knope and GitHub Actions.
 2. Confirm `knope.toml` and workflow files are present.
 3. Trigger **Prepare Release PR**.
 4. Merge `knope/release`.
-5. Verify release tag and GitHub release notes.
+5. Verify both JSR package versions are published.
+6. Verify release tag and GitHub release notes.
 
 ## Reporting Bugs
 

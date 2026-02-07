@@ -17,7 +17,11 @@ describe('knope release configuration', () => {
   });
 
   it('defines release inputs and a changelog source', () => {
+    const config = readFileSync(rootFile('knope.toml'), 'utf8');
+
     expect(existsSync(rootFile('CHANGELOG.md'))).toBe(true);
     expect(existsSync(rootFile('.changes/README.md'))).toBe(true);
+    expect(config).toContain('projects/effect-platform-angular/jsr.json');
+    expect(config).toContain('projects/effect-angular-query/jsr.json');
   });
 });

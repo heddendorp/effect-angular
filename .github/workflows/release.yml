@@ -10,6 +10,7 @@ on:
 
 permissions:
   contents: write
+  id-token: write
 
 jobs:
   release:
@@ -46,6 +47,14 @@ jobs:
 
       - name: Validate Knope configuration
         run: knope --validate
+
+      - name: Publish effect-platform-angular to JSR
+        working-directory: projects/effect-platform-angular
+        run: npx jsr publish
+
+      - name: Publish effect-angular-query to JSR
+        working-directory: projects/effect-angular-query
+        run: npx jsr publish
 
       - name: Create GitHub release
         run: knope release --verbose

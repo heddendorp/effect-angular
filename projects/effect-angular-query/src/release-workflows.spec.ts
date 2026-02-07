@@ -15,7 +15,10 @@ describe('release workflows', () => {
     const releaseWorkflow = readFileSync(releasePath, 'utf8');
 
     expect(prepareReleaseWorkflow).toContain('knope prepare-release --verbose');
+    expect(prepareReleaseWorkflow).toContain('npx jsr publish --dry-run');
     expect(releaseWorkflow).toContain('knope release --verbose');
+    expect(releaseWorkflow).toContain('npx jsr publish');
     expect(releaseWorkflow).toContain("knope/release");
+    expect(releaseWorkflow).toContain('id-token: write');
   });
 });

@@ -10,6 +10,15 @@
   "dependencies": {
     "tslib": "^2.3.0"
   },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/heddendorp/effect-angular.git",
+    "directory": "projects/effect-platform-angular"
+  },
+  "bugs": {
+    "url": "https://github.com/heddendorp/effect-angular/issues"
+  },
+  "homepage": "https://github.com/heddendorp/effect-angular#readme",
   "publishConfig": {
     "access": "public"
   },

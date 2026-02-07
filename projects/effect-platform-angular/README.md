@@ -7,11 +7,17 @@ Angular HttpClient adapter for Effect Platform. Use it to run Effect HttpClient 
 ### Install
 
 ```bash
-npm install effect-platform-angular @effect/platform effect
+npx jsr add @heddendorp/effect-platform-angular
 ```
 
 ```bash
-bun add effect-platform-angular @effect/platform effect
+bunx jsr add @heddendorp/effect-platform-angular
+```
+
+Install required peers in your app:
+
+```bash
+bun add @effect/platform effect
 ```
 
 ### Register the adapter
@@ -19,7 +25,7 @@ bun add effect-platform-angular @effect/platform effect
 ```ts
 import { provideHttpClient } from '@angular/common/http';
 import { bootstrapApplication } from '@angular/platform-browser';
-import { provideEffectHttpClient } from 'effect-platform-angular';
+import { provideEffectHttpClient } from '@heddendorp/effect-platform-angular';
 
 import { AppComponent } from './app/app.component';
 
@@ -34,7 +40,7 @@ bootstrapApplication(AppComponent, {
 import { inject, Injectable } from '@angular/core';
 import { HttpClient } from '@effect/platform';
 import * as Effect from 'effect/Effect';
-import { EFFECT_HTTP_CLIENT } from 'effect-platform-angular';
+import { EFFECT_HTTP_CLIENT } from '@heddendorp/effect-platform-angular';
 
 @Injectable({ providedIn: 'root' })
 export class ProfileService {
@@ -70,7 +76,7 @@ import { Rpc, RpcClient, RpcClientError, RpcGroup, RpcSerialization } from '@eff
 import * as Effect from 'effect/Effect';
 import * as Layer from 'effect/Layer';
 import * as Schema from 'effect/Schema';
-import { EFFECT_HTTP_CLIENT } from 'effect-platform-angular';
+import { EFFECT_HTTP_CLIENT } from '@heddendorp/effect-platform-angular';
 
 const Ping = Rpc.make('Ping', {
   payload: Schema.Struct({ message: Schema.String }),
@@ -138,6 +144,6 @@ export class AppRpcClient implements AppRpcPromiseClient {
 
 ## Compatibility
 
-- Angular 21+
+- Angular 21.x (peer dependency range currently `^21.1.0`)
 - `@effect/platform` 0.94+
 - `effect` 3.19+

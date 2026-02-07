@@ -5,10 +5,20 @@ Angular helpers for building TanStack Query `injectQuery` options from Effect RP
 ## Installation
 
 ```bash
-npm install effect-angular-query @tanstack/angular-query-experimental @effect/rpc effect
+npx jsr add @heddendorp/effect-angular-query
 ```
 
-Requires Angular 21+.
+```bash
+bunx jsr add @heddendorp/effect-angular-query
+```
+
+Install required peers in your app:
+
+```bash
+bun add @tanstack/angular-query-experimental @effect/rpc effect
+```
+
+Requires Angular 21.x (peer dependency range currently `^21.1.0`).
 
 ## Setup
 
@@ -33,7 +43,7 @@ import * as RpcGroup from '@effect/rpc/RpcGroup';
 import * as Layer from 'effect/Layer';
 import * as Schema from 'effect/Schema';
 
-import { provideEffectRpcQueryClient } from 'effect-angular-query';
+import { provideEffectRpcQueryClient } from '@heddendorp/effect-angular-query';
 
 const GetUser = Rpc.make('users.get', {
   payload: Schema.Struct({ id: Schema.String }),
@@ -102,7 +112,7 @@ import { InjectionToken, inject } from '@angular/core';
 
 import * as RpcGroup from '@effect/rpc/RpcGroup';
 
-import { EffectRpcQueryClient, RpcQueryHelpers } from 'effect-angular-query';
+import { EffectRpcQueryClient, RpcQueryHelpers } from '@heddendorp/effect-angular-query';
 
 export const APP_QUERY_HELPERS = new InjectionToken<
   RpcQueryHelpers<RpcGroup.Rpcs<typeof AppRpcs>>
@@ -148,7 +158,7 @@ export class UserDetailsComponent {
 import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
 import { injectQuery } from '@tanstack/angular-query-experimental';
 
-import { EffectRpcQueryClient } from 'effect-angular-query';
+import { EffectRpcQueryClient } from '@heddendorp/effect-angular-query';
 
 @Component({
   selector: 'app-user-details',
@@ -209,7 +219,7 @@ Use path-level helpers to invalidate or refetch a subtree of queries:
 ```ts
 import { inject } from '@angular/core';
 import { QueryClient } from '@tanstack/angular-query-experimental';
-import { EffectRpcQueryClient } from 'effect-angular-query';
+import { EffectRpcQueryClient } from '@heddendorp/effect-angular-query';
 
 const rpcQueryClient = inject(EffectRpcQueryClient);
 const queryClient = inject(QueryClient);

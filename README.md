@@ -53,6 +53,12 @@ JSR targets:
 - `@heddendorp/effect-platform-angular`
 - `@heddendorp/effect-angular-query`
 
+Install from JSR:
+
+```bash
+bunx jsr add @heddendorp/effect-platform-angular @heddendorp/effect-angular-query
+```
+
 Package-specific docs:
 
 - `projects/effect-platform-angular/README.md`

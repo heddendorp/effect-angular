@@ -29,33 +29,10 @@ jobs:
           bun-version: '1.2.19'
 
       - name: Install Knope
-        env:
-          GH_TOKEN: ${{ secrets.RELEASE_PAT || secrets.GITHUB_TOKEN }}
-        run: |
-          DOWNLOAD_DIR="$RUNNER_TEMP/knope-download"
-          ARCH="$(uname -m)"
-
-          case "$ARCH" in
-            x86_64)
-              TARGET="x86_64-unknown-linux-musl"
-              ;;
-            aarch64|arm64)
-              TARGET="aarch64-unknown-linux-musl"
-              ;;
-            *)
-              echo "Unsupported architecture: $ARCH"
-              exit 1
-              ;;
-          esac
-
-          ARCHIVE="knope-${TARGET}.tgz"
-          mkdir -p "$DOWNLOAD_DIR"
-          gh release download knope/v0.22.2 --repo knope-dev/knope --pattern "$ARCHIVE" --dir "$DOWNLOAD_DIR"
-          tar -xzf "$DOWNLOAD_DIR/$ARCHIVE" -C "$DOWNLOAD_DIR"
-          mv "$DOWNLOAD_DIR/knope-${TARGET}/knope" "$RUNNER_TEMP/knope"
-          chmod +x "$RUNNER_TEMP/knope"
-          echo "$RUNNER_TEMP" >> "$GITHUB_PATH"
-          "$RUNNER_TEMP/knope" --version
+        uses: knope-dev/action@v2.1.0
+        with:
+          version: 0.22.2
+          github-token: ${{ secrets.RELEASE_PAT || secrets.GITHUB_TOKEN }}
 
       - name: Validate Knope configuration
         run: knope --validate

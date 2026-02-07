@@ -11,6 +11,9 @@ versioned_files = [
 ]
 changelog = "CHANGELOG.md"
 
+[changes]
+ignore_conventional_commits = true
+
 [bot.releases]
 enabled = true
 

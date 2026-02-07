@@ -2,9 +2,6 @@ name: Prepare Release PR
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - main
 
 permissions:
   contents: write
@@ -13,7 +10,6 @@ permissions:
 
 jobs:
   prepare-release:
-    if: "${{ github.event_name == 'workflow_dispatch' || !contains(github.event.head_commit.message, 'chore: prepare release') }}"
     runs-on: ubuntu-latest
 
     steps:
@@ -39,6 +35,11 @@ jobs:
 
       - name: Install dependencies
         run: bun install --frozen-lockfile
+
+      - name: Configure Git identity for release commit
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
       - name: Dry-run JSR publish (effect-platform-angular)
         working-directory: projects/effect-platform-angular

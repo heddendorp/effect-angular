@@ -8,11 +8,11 @@
     - [x] Write overview and goals aligned with `conductor/product.md`
     - [x] Add quickstart/setup using Bun + Angular workspace
     - [x] Document key packages in the monorepo
-- [~] Task: Add community/health files
-    - [ ] Add MIT LICENSE
-    - [ ] Add CODE_OF_CONDUCT
-    - [ ] Add CONTRIBUTING
-    - [ ] Add SECURITY
+- [x] Task: Add community/health files [9bb3ce4]
+    - [x] Add MIT LICENSE
+    - [x] Add CODE_OF_CONDUCT
+    - [x] Add CONTRIBUTING
+    - [x] Add SECURITY
 - [ ] Task: Conductor - User Manual Verification 'Phase 1: Documentation & Community Baseline' (Protocol in workflow.md)
 
 ## Phase 2: Knope Release Automation

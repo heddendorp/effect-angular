@@ -68,3 +68,23 @@ Build a specific library:
 bun run ng build effect-platform-angular
 bun run ng build effect-angular-query
 ```
+
+## Release Workflow
+
+This repository uses Knope with GitHub Actions for release automation.
+
+- Change files live in `.changes/` and are the source for release notes.
+- `Prepare Release PR` workflow updates/creates a `knope/release` pull request.
+- Merging `knope/release` into `main` triggers the `Release` workflow, which runs tests/builds and creates a GitHub release.
+
+Required repository secrets:
+
+- `RELEASE_PAT` (recommended): Personal access token with `contents:write` and `pull-requests:write`.
+  The workflows fall back to `GITHUB_TOKEN`, but `RELEASE_PAT` is recommended for reliable branch/PR operations.
+
+Manual first release bootstrap:
+
+1. Add at least one change file in `.changes/`.
+2. Run `Prepare Release PR` from GitHub Actions.
+3. Merge the generated `knope/release` pull request.
+4. Confirm the `Release` workflow succeeds and a GitHub release is created.

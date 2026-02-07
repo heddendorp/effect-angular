@@ -37,6 +37,33 @@ bun run ng build effect-angular-query
 - Add or update tests when behavior changes.
 - Update docs when API or workflows change.
 - Use clear commit messages.
+- Include a change file in `.changes/` for user-facing changes.
+
+## Releases
+
+Release automation is managed by Knope and GitHub Actions.
+
+### Prerequisites
+
+- Configure a repository secret named `RELEASE_PAT` with:
+  - `contents:write`
+  - `pull-requests:write`
+
+### Standard release flow
+
+1. Merge user-facing PRs with change files under `.changes/`.
+2. Run the **Prepare Release PR** workflow from GitHub Actions (or let it run on `main` push).
+3. Review and merge the generated `knope/release` pull request.
+4. Verify the **Release** workflow succeeds.
+5. Confirm the new GitHub release is published.
+
+### First release checklist
+
+1. Ensure at least one change file exists in `.changes/`.
+2. Confirm `knope.toml` and workflow files are present.
+3. Trigger **Prepare Release PR**.
+4. Merge `knope/release`.
+5. Verify release tag and GitHub release notes.
 
 ## Reporting Bugs
 

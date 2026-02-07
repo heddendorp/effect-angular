@@ -25,9 +25,9 @@
 - [x] Task: Add GitHub Actions workflows for Knope bot flow [ad02cd8]
     - [x] Add workflow(s) required by Knope bot
     - [x] Ensure permissions and branch targets align with bot flow
-- [~] Task: Validate automation setup
-    - [ ] Sanity-check workflow YAML and config files
-    - [ ] Document expected release flow in README or CONTRIBUTING
+- [x] Task: Validate automation setup [77ccd51]
+    - [x] Sanity-check workflow YAML and config files
+    - [x] Document expected release flow in README or CONTRIBUTING
 - [ ] Task: Conductor - User Manual Verification 'Phase 2: Knope Release Automation' (Protocol in workflow.md)
 
 ## Phase 3: Dependency Automation

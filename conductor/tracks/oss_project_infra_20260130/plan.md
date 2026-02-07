@@ -1,9 +1,9 @@
 # Plan: OSS project scaffolding + Knope release flow
 
 ## Phase 1: Documentation & Community Baseline
-- [~] Task: Review existing repo context for README accuracy
-    - [ ] Inspect root `package.json` and workspace layout for package list
-    - [ ] Confirm current install/dev/test commands from tooling
+- [x] Task: Review existing repo context for README accuracy [29d0c77]
+    - [x] Inspect root `package.json` and workspace layout for package list
+    - [x] Confirm current install/dev/test commands from tooling
 - [ ] Task: Draft and add root README
     - [ ] Write overview and goals aligned with `conductor/product.md`
     - [ ] Add quickstart/setup using Bun + Angular workspace

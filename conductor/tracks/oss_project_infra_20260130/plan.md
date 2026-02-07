@@ -13,10 +13,10 @@
     - [x] Add CODE_OF_CONDUCT
     - [x] Add CONTRIBUTING
     - [x] Add SECURITY
-- [ ] Task: Conductor - User Manual Verification 'Phase 1: Documentation & Community Baseline' (Protocol in workflow.md)
+- [~] Task: Conductor - User Manual Verification 'Phase 1: Documentation & Community Baseline' (Protocol in workflow.md)
 
 ## Phase 2: Knope Release Automation
-- [ ] Task: Define Knope release workflow for this repo
+- [~] Task: Define Knope release workflow for this repo
     - [ ] Capture change-file strategy (location, format, expectations)
     - [ ] Map bot flow details (release PR branch, trigger conditions)
 - [ ] Task: Add Knope configuration

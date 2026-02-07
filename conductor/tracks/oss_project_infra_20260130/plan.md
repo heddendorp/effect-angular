@@ -8,7 +8,7 @@
     - [x] Write overview and goals aligned with `conductor/product.md`
     - [x] Add quickstart/setup using Bun + Angular workspace
     - [x] Document key packages in the monorepo
-- [ ] Task: Add community/health files
+- [~] Task: Add community/health files
     - [ ] Add MIT LICENSE
     - [ ] Add CODE_OF_CONDUCT
     - [ ] Add CONTRIBUTING

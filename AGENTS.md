@@ -54,3 +54,10 @@ You are an expert in TypeScript, Angular, and scalable web application developme
 - Design services around a single responsibility
 - Use the `providedIn: 'root'` option for singleton services
 - Use the `inject()` function instead of constructor injection
+
+## Release and Change Tracking
+
+- Use changesets for tracking user-facing changes.
+- Add a changeset file for each user-facing PR under `.changes/`.
+- Do not rely on conventional commits alone for release notes.
+- Keep changeset summaries concise and focused on user impact.

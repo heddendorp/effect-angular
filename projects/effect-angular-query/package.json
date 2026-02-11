@@ -1,6 +1,6 @@
 {
   "name": "@heddendorp/effect-angular-query",
-  "version": "0.0.5",
+  "version": "0.1.0",
   "peerDependencies": {
     "@angular/common": "^21.1.0",
     "@angular/core": "^21.1.0",

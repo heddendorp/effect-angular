@@ -7,7 +7,7 @@ Effect Angular provides Angular-first integrations for Effect Platform and Effec
 This workspace currently ships two Angular libraries:
 
 - `effect-platform-angular`: Adapter that bridges Effect Platform `HttpClient` to Angular `HttpClient`.
-- `effect-angular-query`: Helpers that build TanStack Angular Query options from Effect RPC procedures.
+- `effect-angular-query`: Injectable Effect RPC client with auto-generated TanStack Query and Mutation helpers.
 
 ## Goals
 
@@ -43,10 +43,10 @@ bun run test -- --watch=false
 
 ## Packages
 
-| Package | Purpose | Path |
-| --- | --- | --- |
+| Package                   | Purpose                                                             | Path                               |
+| ------------------------- | ------------------------------------------------------------------- | ---------------------------------- |
 | `effect-platform-angular` | Angular `HttpClient` adapter for Effect Platform HTTP/RPC transport | `projects/effect-platform-angular` |
-| `effect-angular-query` | Effect RPC to TanStack Angular Query helper layer | `projects/effect-angular-query` |
+| `effect-angular-query`    | Effect RPC client + TanStack Angular Query/Mutation helper layer    | `projects/effect-angular-query`    |
 
 npm packages:
 
@@ -86,15 +86,22 @@ This repository uses Knope with GitHub Actions for release automation.
 
 - Change files live in `.changeset/` and are the source for release notes.
 - Each change file uses frontmatter + summary markdown, for example:
+
   ```md
   ---
   effect-platform-angular: patch
-  effect-angular-query: minor
+  effect-angular-query: major
   ---
 
   ### Changed
+
   - Describe user-facing impact.
+
+  ### Migration
+
+  - For breaking changes, list explicit old -> new API replacements.
   ```
+
 - Knope Bot updates/creates the `knope/release` pull request from `.changeset` files.
 - Merging `knope/release` into `main` triggers the `Release` workflow, which runs tests/builds and publishes both libraries to npm.
 

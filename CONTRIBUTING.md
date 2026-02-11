@@ -20,7 +20,7 @@ Thanks for your interest in contributing to Effect Angular.
 ## Working on Packages
 
 - `projects/effect-platform-angular`: Effect Platform integration with Angular HttpClient
-- `projects/effect-angular-query`: Effect RPC query helper integration for TanStack Angular Query
+- `projects/effect-angular-query`: Effect RPC injectable client with TanStack Query/Mutation helpers
 
 Useful commands:
 
@@ -39,14 +39,20 @@ bun run ng build effect-angular-query
 - Use clear commit messages.
 - Include a change file in `.changeset/` for user-facing changes.
 - Use changeset frontmatter with package and change type, for example:
+
   ```md
   ---
   effect-platform-angular: patch
-  effect-angular-query: minor
+  effect-angular-query: major
   ---
 
-  ### Fixed
+  ### Changed
+
   - Explain user-visible impact.
+
+  ### Migration
+
+  - For breaking changes, include exact old -> new API replacements and setup steps.
   ```
 
 ## Releases
@@ -61,7 +67,7 @@ Release automation is managed by Knope and GitHub Actions.
 - Configure npm trusted publishing (OIDC) for:
   - `@heddendorp/effect-platform-angular`
   - `@heddendorp/effect-angular-query`
-  linked to `heddendorp/effect-angular` release workflow.
+    linked to `heddendorp/effect-angular` release workflow.
 
 ### Standard release flow
 

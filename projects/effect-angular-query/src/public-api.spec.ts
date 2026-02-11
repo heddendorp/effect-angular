@@ -1,15 +1,17 @@
 import * as PublicApi from './public-api';
 
 describe('effect-angular-query public API', () => {
-  it('exports the RPC query client helpers', () => {
-    expect(PublicApi.EffectRpcQueryClient).toBeTruthy();
-    expect(PublicApi.EFFECT_RPC_QUERY_CLIENT_CONFIG).toBeTruthy();
-    expect(PublicApi.provideEffectRpcQueryClient).toBeTruthy();
+  it('exports the RPC client factory and classification helpers', () => {
+    expect(PublicApi.createEffectRpcAngularClient).toBeTruthy();
+    expect(PublicApi.createEffectRpcAngularClientConfig).toBeTruthy();
+    expect(PublicApi.asRpcQuery).toBeTruthy();
+    expect(PublicApi.asRpcMutation).toBeTruthy();
   });
 
-  it('exports query key and options utilities', () => {
+  it('exports query and mutation utility helpers', () => {
     expect(PublicApi.createRpcQueryKey).toBeTruthy();
     expect(PublicApi.createRpcQueryOptions).toBeTruthy();
+    expect(PublicApi.createRpcMutationOptions).toBeTruthy();
     expect(PublicApi.createRpcPathKey).toBeTruthy();
     expect(PublicApi.createRpcQueryFilter).toBeTruthy();
   });

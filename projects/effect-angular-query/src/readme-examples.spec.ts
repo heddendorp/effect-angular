@@ -1,16 +1,15 @@
-import { InjectionToken, inject, signal, type Provider } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
-import { injectQuery, provideTanStackQuery, QueryClient } from '@tanstack/angular-query-experimental';
+import {
+  injectMutation,
+  injectQuery,
+  provideTanStackQuery,
+  QueryClient,
+} from '@tanstack/angular-query-experimental';
 import * as RpcClient from '@effect/rpc/RpcClient';
-import * as RpcGroup from '@effect/rpc/RpcGroup';
 import * as Effect from 'effect/Effect';
 import * as Layer from 'effect/Layer';
 
-import {
-  EffectRpcQueryClient,
-  provideEffectRpcQueryClient,
-  type RpcQueryHelpers,
-} from './lib/effect-rpc-query-client';
+import { createEffectRpcAngularClient } from './lib/effect-rpc-query-client';
 import { AppRpcs } from './testing/rpc-contracts';
 
 const createRpcLayer = () =>
@@ -25,76 +24,60 @@ const createRpcLayer = () =>
     ),
   );
 
-const configureBaseProviders = (extraProviders: Provider[] = []) => {
-  TestBed.configureTestingModule({
-    providers: [
-      provideTanStackQuery(new QueryClient({ defaultOptions: { queries: { retry: false } } })),
-      provideEffectRpcQueryClient({
-        group: AppRpcs,
-        rpcLayer: createRpcLayer(),
-        keyPrefix: 'app',
-        defaults: { staleTime: 10_000 },
-      }),
-      ...extraProviders,
-    ],
-  });
-};
+const AppRpc = createEffectRpcAngularClient({
+  group: AppRpcs,
+  rpcLayer: createRpcLayer(),
+  keyPrefix: 'app',
+  queryDefaults: { staleTime: 10_000 },
+  mutationDefaults: { retry: 1 },
+});
 
 describe('README examples', () => {
-  it('creates injectable helpers once and reuses them', () => {
-    const APP_QUERY_HELPERS = new InjectionToken<RpcQueryHelpers<RpcGroup.Rpcs<typeof AppRpcs>>>(
-      'APP_QUERY_HELPERS',
-    );
-
-    const provideAppQueryHelpers = () => ({
-      provide: APP_QUERY_HELPERS,
-      useFactory: () => inject(EffectRpcQueryClient).helpersFor(AppRpcs),
+  beforeEach(() => {
+    TestBed.configureTestingModule({
+      providers: [
+        provideTanStackQuery(new QueryClient({ defaultOptions: { queries: { retry: false } } })),
+        AppRpc.providers,
+      ],
     });
+  });
 
-    configureBaseProviders([provideAppQueryHelpers()]);
+  it('creates an injectable client once and reuses it', () => {
+    const first = TestBed.runInInjectionContext(() => AppRpc.injectClient());
+    const second = TestBed.runInInjectionContext(() => AppRpc.injectClient());
 
-    const helpers = TestBed.runInInjectionContext(() => inject(APP_QUERY_HELPERS));
-
-    expect(helpers.users.get.queryKey({ id: '1' })).toEqual([
+    expect(first).toBe(second);
+    expect(first.users.get.queryKey({ id: '1' })).toEqual([
       ['app', 'users', 'get'],
-      { input: { id: '1' } },
+      { input: { id: '1' }, type: 'query' },
     ]);
   });
 
-  it('uses helpers with injectQuery', () => {
-    configureBaseProviders();
+  it('uses query and mutation helpers with injectQuery and injectMutation', () => {
+    const states = TestBed.runInInjectionContext(() => {
+      const rpc = AppRpc.injectClient();
 
-    const query = TestBed.runInInjectionContext(() => {
-      const rpcQueryClient = inject(EffectRpcQueryClient);
-      const helpers = rpcQueryClient.helpersFor(AppRpcs);
-      const userId = signal('1');
+      const userQuery = injectQuery(() => rpc.users.get.queryOptions({ id: '1' }));
+      const updateUser = injectMutation(() => rpc.users.updateName.mutationOptions());
 
-      return injectQuery(() =>
-        helpers.users.get.queryOptions(
-          { id: userId() },
-          { overrides: { staleTime: 10_000 } },
-        ),
-      );
+      return { userQuery, updateUser };
     });
 
-    expect(query).toBeTruthy();
-    expect(typeof query.isPending).toBe('function');
+    expect(typeof states.userQuery.isPending).toBe('function');
+    expect(typeof states.updateUser.mutate).toBe('function');
   });
 
-  it('builds query keys and path filters as documented', () => {
-    configureBaseProviders();
+  it('builds path helpers and mutation keys as documented', () => {
+    const rpc = TestBed.runInInjectionContext(() => AppRpc.injectClient());
 
-    const rpcQueryClient = TestBed.inject(EffectRpcQueryClient);
-    const helpers = rpcQueryClient.helpersFor(AppRpcs);
-
-    expect(helpers.users.get.queryKey({ id: '1' })).toEqual([
-      ['app', 'users', 'get'],
-      { input: { id: '1' } },
-    ]);
-
-    expect(rpcQueryClient.queryFilter(['users'], { exact: false })).toEqual({
+    expect(rpc.pathKey(['users'])).toEqual([['app', 'users']]);
+    expect(rpc.queryFilter(['users'], { exact: false })).toEqual({
       queryKey: [['app', 'users']],
       exact: false,
     });
+    expect(rpc.users.updateName.mutationKey()).toEqual([
+      ['app', 'users', 'updateName'],
+      { type: 'mutation' },
+    ]);
   });
 });

@@ -1,6 +1,17 @@
-import type { CreateQueryOptions, QueryFunction } from '@tanstack/angular-query-experimental';
+import type {
+  CreateMutationOptions,
+  CreateQueryOptions,
+  QueryFunction,
+} from '@tanstack/angular-query-experimental';
 
-import type { RpcQueryFn, RpcQueryKey, RpcQueryOptions } from './rpc-query-types';
+import type {
+  RpcMutationFn,
+  RpcMutationKey,
+  RpcMutationOptions,
+  RpcQueryFn,
+  RpcQueryKey,
+  RpcQueryOptions,
+} from './rpc-query-types';
 
 describe('rpc query types', () => {
   it('aligns query options with TanStack CreateQueryOptions', () => {
@@ -23,5 +34,26 @@ describe('rpc query types', () => {
     const assigned: QueryFunction<number, SampleKey> = queryFn;
 
     expect(typeof assigned).toBe('function');
+  });
+
+  it('aligns mutation options with TanStack CreateMutationOptions', () => {
+    const mutationOptions: RpcMutationOptions<string, Error, { id: string }, { snapshot: string }> =
+      {
+        mutationKey: [['users', 'update'], { type: 'mutation' }],
+        mutationFn: async () => 'ok',
+      };
+
+    const assigned: CreateMutationOptions<string, Error, { id: string }, { snapshot: string }> =
+      mutationOptions;
+
+    expect(assigned.mutationKey).toEqual([['users', 'update'], { type: 'mutation' }]);
+  });
+
+  it('exposes mutation keys and functions with the expected shape', () => {
+    const key: RpcMutationKey = [['users', 'update'], { type: 'mutation' }];
+    const mutationFn: RpcMutationFn<number, { id: string }, Error, unknown> = async () => 42;
+
+    expect(key[1].type).toBe('mutation');
+    expect(typeof mutationFn).toBe('function');
   });
 });

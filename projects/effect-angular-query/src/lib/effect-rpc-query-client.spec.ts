@@ -2,15 +2,24 @@ import { TestBed } from '@angular/core/testing';
 import { Rpc, RpcClient, RpcGroup } from '@effect/rpc';
 import * as Effect from 'effect/Effect';
 import * as Layer from 'effect/Layer';
+import * as Schema from 'effect/Schema';
 
 import {
-  EFFECT_RPC_QUERY_CLIENT_CONFIG,
-  EffectRpcQueryClient,
-  provideEffectRpcQueryClient,
+  asRpcMutation,
+  createEffectRpcAngularClient,
+  createEffectRpcAngularClientConfig,
 } from './effect-rpc-query-client';
 
-const Ping = Rpc.make('Ping');
-class AppRpcs extends RpcGroup.make(Ping) {}
+const Ping = Rpc.make('Ping', {
+  payload: Schema.Struct({ id: Schema.String }),
+  success: Schema.Struct({ name: Schema.String }),
+});
+const Save = Rpc.make('save', {
+  payload: Schema.Struct({ id: Schema.String, name: Schema.String }),
+  success: Schema.Struct({ ok: Schema.Boolean }),
+});
+
+class AppRpcs extends RpcGroup.make(Ping, asRpcMutation(Save)) {}
 
 const createRpcLayer = () =>
   Layer.effect(
@@ -24,40 +33,38 @@ const createRpcLayer = () =>
     ),
   );
 
-describe('EffectRpcQueryClient DI', () => {
+describe('Effect RPC Angular client DI', () => {
   it('fills config defaults when omitted', () => {
-    TestBed.configureTestingModule({
-      providers: [
-        provideEffectRpcQueryClient({
-          group: AppRpcs,
-          rpcLayer: createRpcLayer(),
-        }),
-      ],
+    const config = createEffectRpcAngularClientConfig({
+      group: AppRpcs,
+      rpcLayer: createRpcLayer(),
     });
 
-    const client = TestBed.inject(EffectRpcQueryClient);
-
-    expect(client.config.defaults).toEqual({});
+    expect(config.queryDefaults).toEqual({});
+    expect(config.mutationDefaults).toEqual({});
   });
 
-  it('exposes configured values through the config token', () => {
-    const rpcLayer = createRpcLayer();
-
-    TestBed.configureTestingModule({
-      providers: [
-        provideEffectRpcQueryClient({
-          group: AppRpcs,
-          rpcLayer,
-          keyPrefix: 'app',
-          defaults: { staleTime: 5000 },
-        }),
-      ],
+  it('creates providers and injectClient for a typed singleton', () => {
+    const rpcClient = createEffectRpcAngularClient({
+      group: AppRpcs,
+      rpcLayer: createRpcLayer(),
+      keyPrefix: 'app',
+      queryDefaults: { staleTime: 5000 },
+      mutationDefaults: { retry: 1 },
     });
 
-    const config = TestBed.inject(EFFECT_RPC_QUERY_CLIENT_CONFIG);
+    TestBed.configureTestingModule({
+      providers: [rpcClient.providers],
+    });
 
-    expect(config.keyPrefix).toBe('app');
-    expect(config.defaults.staleTime).toBe(5000);
-    expect(config.rpcLayer).toBe(rpcLayer);
+    const first = TestBed.runInInjectionContext(() => rpcClient.injectClient());
+    const second = TestBed.runInInjectionContext(() => rpcClient.injectClient());
+
+    expect(first).toBe(second);
+    expect(first.Ping.queryKey({ id: '1' })).toEqual([
+      ['app', 'Ping'],
+      { input: { id: '1' }, type: 'query' },
+    ]);
+    expect(first.save.mutationKey()).toEqual([['app', 'save'], { type: 'mutation' }]);
   });
 });

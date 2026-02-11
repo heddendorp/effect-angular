@@ -1,50 +1,116 @@
-import { EnvironmentProviders, InjectionToken, Injectable, inject, makeEnvironmentProviders } from '@angular/core';
+import {
+  EnvironmentProviders,
+  InjectionToken,
+  inject,
+  makeEnvironmentProviders,
+} from '@angular/core';
 import type {
+  CreateMutationOptions,
   CreateQueryOptions,
   DefaultError,
   QueryFilters,
 } from '@tanstack/angular-query-experimental';
 import type * as Rpc from '@effect/rpc/Rpc';
 import * as RpcClient from '@effect/rpc/RpcClient';
-import type { RpcClientError } from '@effect/rpc/RpcClientError';
+import type * as RpcClientError from '@effect/rpc/RpcClientError';
 import type * as RpcGroup from '@effect/rpc/RpcGroup';
+import * as RpcSchema from '@effect/rpc/RpcSchema';
+import * as Context from 'effect/Context';
 import * as Effect from 'effect/Effect';
 import type * as Layer from 'effect/Layer';
+import * as Option from 'effect/Option';
 
+import { createRpcMutationOptions } from './rpc-mutation-options';
+import type { RpcMutationOptionsOverrides } from './rpc-mutation-options';
 import { createRpcQueryKey } from './rpc-query-key';
 import type { RpcKeyPrefix } from './rpc-query-key';
 import { createRpcQueryOptions } from './rpc-query-options';
 import type { RpcQueryOptionsOverrides } from './rpc-query-options';
 import { createRpcPathKey, createRpcQueryFilter } from './rpc-query-path';
 import type { RpcPathKey, RpcPathOptions, RpcQueryFilterOptions } from './rpc-query-path';
-import type { RpcQueryFn, RpcQueryKey, RpcQueryKeyType } from './rpc-query-types';
+import type {
+  RpcMutationFn,
+  RpcMutationKey,
+  RpcQueryFn,
+  RpcQueryKey,
+  RpcQueryKeyType,
+} from './rpc-query-types';
 
-export type EffectRpcQueryClientDefaults = RpcQueryOptionsOverrides<
+export type RpcProcedureKind = 'query' | 'mutation';
+
+const RPC_PROCEDURE_KIND_ANNOTATION = Context.GenericTag<{ readonly kind: RpcProcedureKind }>(
+  'effect-angular/RpcProcedureKind',
+);
+
+declare const RPC_PROCEDURE_KIND_BRAND: unique symbol;
+
+type RpcProcedureBrand<Kind extends RpcProcedureKind> = {
+  readonly [RPC_PROCEDURE_KIND_BRAND]?: Kind;
+};
+
+type RpcMarkable = Rpc.Any &
+  Rpc.AnyWithProps & {
+    readonly annotate: <Identifier, Service>(
+      tag: Context.Tag<Identifier, Service>,
+      value: Service,
+    ) => unknown;
+  };
+
+export type RpcQueryProcedure<Current extends Rpc.Any> = Current & RpcProcedureBrand<'query'>;
+export type RpcMutationProcedure<Current extends Rpc.Any> = Current & RpcProcedureBrand<'mutation'>;
+
+type RpcProcedureKindOf<Current extends Rpc.Any> =
+  Current extends RpcProcedureBrand<infer Kind> ? Kind : 'query';
+
+export const asRpcQuery = <Current extends RpcMarkable>(rpc: Current): RpcQueryProcedure<Current> =>
+  rpc.annotate(RPC_PROCEDURE_KIND_ANNOTATION, {
+    kind: 'query',
+  } as const) as RpcQueryProcedure<Current>;
+
+export const asRpcMutation = <Current extends RpcMarkable>(
+  rpc: Current,
+): RpcMutationProcedure<Current> =>
+  rpc.annotate(RPC_PROCEDURE_KIND_ANNOTATION, {
+    kind: 'mutation',
+  } as const) as RpcMutationProcedure<Current>;
+
+export type EffectRpcAngularClientQueryDefaults = RpcQueryOptionsOverrides<
   unknown,
   DefaultError,
   unknown,
   RpcQueryKey<unknown>
 >;
 
-export type EffectRpcQueryClientConfigInput<Rpcs extends Rpc.Any> = {
-  readonly group: RpcGroup.RpcGroup<Rpcs>;
-  readonly rpcLayer: Layer.Layer<RpcClient.Protocol, never, never>;
-  readonly keyPrefix?: RpcKeyPrefix;
-  readonly defaults?: EffectRpcQueryClientDefaults;
-};
-
-export type EffectRpcQueryClientConfig<Rpcs extends Rpc.Any> = {
-  readonly group: RpcGroup.RpcGroup<Rpcs>;
-  readonly rpcLayer: Layer.Layer<RpcClient.Protocol, never, never>;
-  readonly keyPrefix?: RpcKeyPrefix;
-  readonly defaults: EffectRpcQueryClientDefaults;
-};
-
-type RpcQueryHelperFor<RpcType extends Rpc.Any> = RpcQueryHelper<
-  Rpc.PayloadConstructor<RpcType>,
-  Rpc.Success<RpcType>,
-  Rpc.ErrorExit<RpcType> | RpcClientError
+export type EffectRpcAngularClientMutationDefaults = RpcMutationOptionsOverrides<
+  unknown,
+  DefaultError,
+  unknown,
+  unknown
 >;
+
+export type EffectRpcAngularClientConfigInput<Rpcs extends Rpc.Any> = {
+  readonly group: RpcGroup.RpcGroup<Rpcs>;
+  readonly rpcLayer: Layer.Layer<RpcClient.Protocol, never, never>;
+  readonly keyPrefix?: RpcKeyPrefix;
+  readonly queryDefaults?: EffectRpcAngularClientQueryDefaults;
+  readonly mutationDefaults?: EffectRpcAngularClientMutationDefaults;
+};
+
+export type EffectRpcAngularClientConfig<Rpcs extends Rpc.Any> = {
+  readonly group: RpcGroup.RpcGroup<Rpcs>;
+  readonly rpcLayer: Layer.Layer<RpcClient.Protocol, never, never>;
+  readonly keyPrefix?: RpcKeyPrefix;
+  readonly queryDefaults: EffectRpcAngularClientQueryDefaults;
+  readonly mutationDefaults: EffectRpcAngularClientMutationDefaults;
+};
+
+export const createEffectRpcAngularClientConfig = <Rpcs extends Rpc.Any>(
+  config: EffectRpcAngularClientConfigInput<Rpcs>,
+): EffectRpcAngularClientConfig<Rpcs> => ({
+  ...config,
+  queryDefaults: config.queryDefaults ?? {},
+  mutationDefaults: config.mutationDefaults ?? {},
+});
 
 type RpcTag<Rpcs extends Rpc.Any> = Rpc.Tag<Rpcs>;
 
@@ -57,194 +123,378 @@ type RpcPrefixed<Rpcs extends Rpc.Any, Prefix extends string> = Extract<
   { readonly _tag: `${Prefix}.${string}` }
 >;
 
-type RpcNonPrefixed<Rpcs extends Rpc.Any> = Exclude<
-  Rpcs,
-  { readonly _tag: `${string}.${string}` }
->;
+type RpcNonPrefixed<Rpcs extends Rpc.Any> = Exclude<Rpcs, { readonly _tag: `${string}.${string}` }>;
+
+export type RpcProcedureError<Current extends Rpc.Any> =
+  | Rpc.ErrorExit<Current>
+  | RpcClientError.RpcClientError;
 
 export type RpcQueryKeyOverrides = {
   readonly keyPrefix?: RpcKeyPrefix;
-  readonly type?: RpcQueryKeyType;
 };
 
 export type RpcQueryOptionsInput<TInput, TQueryFnData, TError, TData> = {
   readonly overrides?: RpcQueryOptionsOverrides<TQueryFnData, TError, TData, RpcQueryKey<TInput>>;
   readonly keyPrefix?: RpcKeyPrefix;
-  readonly type?: RpcQueryKeyType;
 };
 
-export type RpcQueryHelper<TInput, TQueryFnData, TError> = {
-  readonly queryKey: (input: TInput, options?: RpcQueryKeyOverrides) => RpcQueryKey<TInput>;
-  readonly queryFn: (input: TInput) => RpcQueryFn<TQueryFnData, RpcQueryKey<TInput>>;
+export type RpcMutationKeyOverrides = {
+  readonly keyPrefix?: RpcKeyPrefix;
+};
+
+export type RpcMutationOptionsInput<TQueryFnData, TError, TVariables, TOnMutateResult> = {
+  readonly overrides?: RpcMutationOptionsOverrides<
+    TQueryFnData,
+    TError,
+    TVariables,
+    TOnMutateResult
+  >;
+  readonly keyPrefix?: RpcKeyPrefix;
+};
+
+type RpcProcedureBaseHelper<Current extends Rpc.Any> = {
+  readonly call: (input: Rpc.PayloadConstructor<Current>) => Promise<Rpc.SuccessExit<Current>>;
+  readonly callEffect: (
+    input: Rpc.PayloadConstructor<Current>,
+  ) => Effect.Effect<Rpc.SuccessExit<Current>, RpcProcedureError<Current>, never>;
+};
+
+type RpcQueryProcedureHelper<Current extends Rpc.Any> = RpcProcedureBaseHelper<Current> & {
+  readonly queryKey: (
+    input: Rpc.PayloadConstructor<Current>,
+    options?: RpcQueryKeyOverrides,
+  ) => RpcQueryKey<Rpc.PayloadConstructor<Current>>;
+  readonly queryFn: (
+    input: Rpc.PayloadConstructor<Current>,
+  ) => RpcQueryFn<Rpc.SuccessExit<Current>, RpcQueryKey<Rpc.PayloadConstructor<Current>>>;
   readonly queryOptions: (
-    input: TInput,
-    options?: RpcQueryOptionsInput<TInput, TQueryFnData, TError, TQueryFnData>,
-  ) => CreateQueryOptions<TQueryFnData, TError, TQueryFnData, RpcQueryKey<TInput>>;
+    input: Rpc.PayloadConstructor<Current>,
+    options?: RpcQueryOptionsInput<
+      Rpc.PayloadConstructor<Current>,
+      Rpc.SuccessExit<Current>,
+      RpcProcedureError<Current>,
+      Rpc.SuccessExit<Current>
+    >,
+  ) => CreateQueryOptions<
+    Rpc.SuccessExit<Current>,
+    RpcProcedureError<Current>,
+    Rpc.SuccessExit<Current>,
+    RpcQueryKey<Rpc.PayloadConstructor<Current>>
+  >;
 };
 
-type RpcQueryHelpersFrom<Rpcs extends Rpc.Any, Prefix extends string> = {
+type RpcMutationProcedureHelper<Current extends Rpc.Any> = RpcProcedureBaseHelper<Current> & {
+  readonly mutationKey: (options?: RpcMutationKeyOverrides) => RpcMutationKey;
+  readonly mutationFn: () => RpcMutationFn<
+    Rpc.SuccessExit<Current>,
+    Rpc.PayloadConstructor<Current>,
+    RpcProcedureError<Current>,
+    unknown
+  >;
+  readonly mutationOptions: <TOnMutateResult = unknown>(
+    options?: RpcMutationOptionsInput<
+      Rpc.SuccessExit<Current>,
+      RpcProcedureError<Current>,
+      Rpc.PayloadConstructor<Current>,
+      TOnMutateResult
+    >,
+  ) => CreateMutationOptions<
+    Rpc.SuccessExit<Current>,
+    RpcProcedureError<Current>,
+    Rpc.PayloadConstructor<Current>,
+    TOnMutateResult
+  >;
+};
+
+type RpcProcedureHelperFor<Current extends Rpc.Any> =
+  RpcProcedureKindOf<Current> extends 'mutation'
+    ? RpcMutationProcedureHelper<Current>
+    : RpcQueryProcedureHelper<Current>;
+
+type RpcHelpersFrom<Rpcs extends Rpc.Any, Prefix extends string> = {
   readonly [Current in Rpcs as Current['_tag'] extends `${Prefix}.${infer Method}`
     ? Method
-    : Current['_tag']]: RpcQueryHelperFor<Current>;
+    : Current['_tag']]: RpcProcedureHelperFor<Current>;
 };
 
-export type RpcQueryHelpers<Rpcs extends Rpc.Any> = RpcQueryHelpersFrom<
+export type EffectRpcAngularClient<Rpcs extends Rpc.Any> = RpcHelpersFrom<
   RpcNonPrefixed<Rpcs>,
   ''
 > & {
-  readonly [Prefix in RpcPrefixes<Rpcs>]: RpcQueryHelpersFrom<RpcPrefixed<Rpcs, Prefix>, Prefix>;
+  readonly [Prefix in RpcPrefixes<Rpcs>]: RpcHelpersFrom<RpcPrefixed<Rpcs, Prefix>, Prefix>;
+} & {
+  readonly pathKey: (pathSegments: readonly string[], options?: RpcPathOptions) => RpcPathKey;
+  readonly queryFilter: (
+    pathSegments: readonly string[],
+    options?: RpcQueryFilterOptions,
+  ) => QueryFilters<RpcPathKey>;
 };
 
-export const EFFECT_RPC_QUERY_CLIENT_CONFIG: InjectionToken<EffectRpcQueryClientConfig<Rpc.Any>> =
-  new InjectionToken<EffectRpcQueryClientConfig<Rpc.Any>>('EFFECT_RPC_QUERY_CLIENT_CONFIG');
-
-/**
- * Normalizes the query client config with default values.
- */
-export const createEffectRpcQueryClientConfig = <Rpcs extends Rpc.Any>(
-  config: EffectRpcQueryClientConfigInput<Rpcs>,
-): EffectRpcQueryClientConfig<Rpcs> => {
-  const defaults: EffectRpcQueryClientDefaults = config.defaults ?? {};
-
-  return {
-    ...config,
-    defaults,
-  };
+export type EffectRpcAngularClientFactory<Rpcs extends Rpc.Any> = {
+  readonly token: InjectionToken<EffectRpcAngularClient<Rpcs>>;
+  readonly providers: EnvironmentProviders;
+  readonly injectClient: () => EffectRpcAngularClient<Rpcs>;
 };
-
-/**
- * Registers the Effect RPC query client configuration.
- */
-export const provideEffectRpcQueryClient = <Rpcs extends Rpc.Any>(
-  config: EffectRpcQueryClientConfigInput<Rpcs>,
-): EnvironmentProviders =>
-  makeEnvironmentProviders([
-    {
-      provide: EFFECT_RPC_QUERY_CLIENT_CONFIG,
-      useValue: createEffectRpcQueryClientConfig(config),
-    },
-  ]);
 
 const getPathSegments = (tag: string): readonly string[] => tag.split('.');
 
 const resolveKeyPrefix = (
   base: RpcKeyPrefix | undefined,
-  overrides: RpcQueryKeyOverrides | undefined,
-): RpcKeyPrefix | undefined => overrides?.keyPrefix ?? base;
+  override: RpcKeyPrefix | undefined,
+): RpcKeyPrefix | undefined => override ?? base;
 
-const createRpcQueryHelpers = <Rpcs extends Rpc.Any>(
-  config: EffectRpcQueryClientConfig<Rpcs>,
-  group: RpcGroup.RpcGroup<Rpcs>,
-): RpcQueryHelpers<Rpcs> => {
-  const helpers = new Map<string, RpcQueryHelper<unknown, unknown, DefaultError>>();
+const getProcedureKind = (rpc: Rpc.AnyWithProps): RpcProcedureKind => {
+  const maybeKind = Context.getOption(rpc.annotations, RPC_PROCEDURE_KIND_ANNOTATION);
 
-  const createHelper = (tag: string): RpcQueryHelper<unknown, unknown, DefaultError> => {
-    const pathSegments = getPathSegments(tag);
+  if (Option.isSome(maybeKind) && maybeKind.value.kind === 'mutation') {
+    return 'mutation';
+  }
 
-    const queryKey = (input: unknown, overrides?: RpcQueryKeyOverrides) =>
-      createRpcQueryKey(pathSegments, {
-        input,
-        keyPrefix: resolveKeyPrefix(config.keyPrefix, overrides),
-        type: overrides?.type,
-      });
+  return 'query';
+};
 
-    const queryFn = (input: unknown) => {
-      const run = () => {
-        const program = Effect.flatMap(RpcClient.make(group), (client) => {
-          const dotIndex = tag.indexOf('.');
-          const root = client as Record<string, unknown>;
-          const target =
-            dotIndex === -1
-              ? root
-              : (root[tag.slice(0, dotIndex)] as Record<string, unknown>);
-          const key = dotIndex === -1 ? tag : tag.slice(dotIndex + 1);
-          // RPC client shape is derived from tag prefixes at runtime.
-          const call = target[key] as (payload: unknown) => Effect.Effect<unknown, unknown, unknown>;
-          return call(input);
-        }).pipe(Effect.provide(config.rpcLayer), Effect.scoped);
+const createStreamUnsupportedError = (tag: string): Error =>
+  new Error(
+    `RPC procedure "${tag}" returns a Stream and is not supported by this integration. ` +
+      'Use a stream-specific integration path for this procedure.',
+  );
 
-        // Rpc middleware requirements are resolved by the configured layer.
-        return Effect.runPromise(program as Effect.Effect<unknown, unknown, never>);
-      };
+const asRecord = (value: unknown): Record<string, unknown> | undefined =>
+  typeof value === 'object' && value !== null ? (value as Record<string, unknown>) : undefined;
 
-      return () => run();
-    };
+const resolveProcedureCall = <Current extends Rpc.Any>(
+  client: unknown,
+  pathSegments: readonly string[],
+): ((
+  input: Rpc.PayloadConstructor<Current>,
+) => Effect.Effect<Rpc.SuccessExit<Current>, unknown, never>) => {
+  let target: unknown = client;
 
-    const queryOptions = (
-      input: unknown,
-      options: RpcQueryOptionsInput<unknown, unknown, DefaultError, unknown> = {},
-    ) =>
-      createRpcQueryOptions({
-        pathSegments,
-        input,
-        keyPrefix: resolveKeyPrefix(config.keyPrefix, options),
-        type: options.type,
-        queryFn: queryFn(input),
-        defaults: config.defaults,
-        overrides: options.overrides,
-      });
-
-    return { queryKey, queryFn, queryOptions };
-  };
-
-  const getHelper = (tag: string) => {
-    const existing = helpers.get(tag);
-    if (existing) {
-      return existing;
+  for (const segment of pathSegments) {
+    const container = asRecord(target);
+    if (!container || !(segment in container)) {
+      throw new Error(
+        `RPC procedure "${pathSegments.join('.')}" is missing on the generated client.`,
+      );
     }
-    const helper = createHelper(tag);
-    helpers.set(tag, helper);
-    return helper;
-  };
+    target = container[segment];
+  }
 
-  const root: Record<string, unknown> = {};
+  if (typeof target !== 'function') {
+    throw new Error(
+      `RPC procedure "${pathSegments.join('.')}" resolved to a non-callable value on the generated client.`,
+    );
+  }
 
-  for (const tag of group.requests.keys()) {
-    const helper = getHelper(tag);
-    const dotIndex = tag.indexOf('.');
-    if (dotIndex === -1) {
-      root[tag] = helper;
+  return target as (
+    input: Rpc.PayloadConstructor<Current>,
+  ) => Effect.Effect<Rpc.SuccessExit<Current>, unknown, never>;
+};
+
+const assignNestedHelper = (
+  root: Record<string, unknown>,
+  pathSegments: readonly string[],
+  helper: unknown,
+): void => {
+  if (pathSegments.length === 0) {
+    return;
+  }
+
+  if (
+    pathSegments.length === 1 &&
+    (pathSegments[0] === 'pathKey' || pathSegments[0] === 'queryFilter')
+  ) {
+    throw new Error(
+      `RPC procedure "${pathSegments[0]}" conflicts with a reserved root helper name in EffectRpcAngularClient.`,
+    );
+  }
+
+  let cursor = root;
+
+  for (let index = 0; index < pathSegments.length - 1; index += 1) {
+    const segment = pathSegments[index]!;
+    const existing = cursor[segment];
+
+    if (existing === undefined) {
+      const next: Record<string, unknown> = {};
+      cursor[segment] = next;
+      cursor = next;
       continue;
     }
 
-    const prefix = tag.slice(0, dotIndex);
-    const method = tag.slice(dotIndex + 1);
-    const existing = root[prefix];
-    const container =
-      existing && typeof existing === 'object' ? (existing as Record<string, unknown>) : {};
-    container[method] = helper;
-    root[prefix] = container;
+    const existingContainer = asRecord(existing);
+    if (!existingContainer) {
+      throw new Error(
+        `RPC procedure path "${pathSegments.join('.')}" conflicts with an existing non-object helper segment "${segment}".`,
+      );
+    }
+
+    cursor = existingContainer;
   }
 
-  return root as RpcQueryHelpers<Rpcs>;
+  const leaf = pathSegments[pathSegments.length - 1]!;
+  cursor[leaf] = helper;
 };
 
-/**
- * Injectable entry point for RPC query helpers.
- */
-@Injectable({ providedIn: 'root' })
-export class EffectRpcQueryClient {
-  readonly config: EffectRpcQueryClientConfig<Rpc.Any> = inject(EFFECT_RPC_QUERY_CLIENT_CONFIG);
+const createProcedureHelper = <Rpcs extends Rpc.Any, Current extends Rpcs>(
+  config: EffectRpcAngularClientConfig<Rpcs>,
+  group: RpcGroup.RpcGroup<Rpcs>,
+  tag: string,
+  rpc: Rpc.AnyWithProps,
+): RpcProcedureHelperFor<Current> => {
+  const pathSegments = getPathSegments(tag);
+  const procedureKind = getProcedureKind(rpc);
+  const streamUnsupportedError = RpcSchema.isStreamSchema(rpc.successSchema)
+    ? createStreamUnsupportedError(tag)
+    : undefined;
 
-  helpersFor<Rpcs extends Rpc.Any>(group: RpcGroup.RpcGroup<Rpcs>): RpcQueryHelpers<Rpcs> {
-    // Config is bound to the same RPC group at runtime via DI.
-    const config = this.config as unknown as EffectRpcQueryClientConfig<Rpcs>;
-    return createRpcQueryHelpers(config, group);
+  const throwIfStreamProcedure = (): void => {
+    if (streamUnsupportedError) {
+      throw streamUnsupportedError;
+    }
+  };
+
+  const callEffect = (input: Rpc.PayloadConstructor<Current>) => {
+    throwIfStreamProcedure();
+
+    const program = Effect.flatMap(RpcClient.make(group), (client) => {
+      const call = resolveProcedureCall<Current>(client, pathSegments);
+      return call(input);
+    }).pipe(Effect.provide(config.rpcLayer), Effect.scoped);
+
+    return program as Effect.Effect<Rpc.SuccessExit<Current>, RpcProcedureError<Current>, never>;
+  };
+
+  const call = (input: Rpc.PayloadConstructor<Current>) => Effect.runPromise(callEffect(input));
+
+  const base: RpcProcedureBaseHelper<Current> = { call, callEffect };
+
+  if (procedureKind === 'mutation') {
+    const mutationKey = (options?: RpcMutationKeyOverrides) =>
+      createRpcQueryKey(pathSegments, {
+        keyPrefix: resolveKeyPrefix(config.keyPrefix, options?.keyPrefix),
+        type: 'mutation',
+      }) as RpcMutationKey;
+
+    const mutationFn = () => async (input: Rpc.PayloadConstructor<Current>) => call(input);
+
+    const mutationOptions = <TOnMutateResult = unknown>(
+      options: RpcMutationOptionsInput<
+        Rpc.SuccessExit<Current>,
+        RpcProcedureError<Current>,
+        Rpc.PayloadConstructor<Current>,
+        TOnMutateResult
+      > = {},
+    ) =>
+      createRpcMutationOptions({
+        pathSegments,
+        keyPrefix: resolveKeyPrefix(config.keyPrefix, options.keyPrefix),
+        mutationFn: mutationFn() as RpcMutationFn<
+          Rpc.SuccessExit<Current>,
+          Rpc.PayloadConstructor<Current>,
+          RpcProcedureError<Current>,
+          TOnMutateResult
+        >,
+        defaults: config.mutationDefaults as RpcMutationOptionsOverrides<
+          Rpc.SuccessExit<Current>,
+          RpcProcedureError<Current>,
+          Rpc.PayloadConstructor<Current>,
+          TOnMutateResult
+        >,
+        overrides: options.overrides,
+      });
+
+    return {
+      ...base,
+      mutationKey,
+      mutationFn,
+      mutationOptions,
+    } as unknown as RpcProcedureHelperFor<Current>;
   }
 
-  pathKey(pathSegments: readonly string[], options: RpcPathOptions = {}): RpcPathKey {
-    return createRpcPathKey(pathSegments, {
-      keyPrefix: options.keyPrefix ?? this.config.keyPrefix,
+  const queryKey = (input: Rpc.PayloadConstructor<Current>, options?: RpcQueryKeyOverrides) =>
+    createRpcQueryKey(pathSegments, {
+      input,
+      keyPrefix: resolveKeyPrefix(config.keyPrefix, options?.keyPrefix),
+      type: 'query' satisfies RpcQueryKeyType,
     });
+
+  const queryFn = (input: Rpc.PayloadConstructor<Current>) => () => call(input);
+
+  const queryOptions = (
+    input: Rpc.PayloadConstructor<Current>,
+    options: RpcQueryOptionsInput<
+      Rpc.PayloadConstructor<Current>,
+      Rpc.SuccessExit<Current>,
+      RpcProcedureError<Current>,
+      Rpc.SuccessExit<Current>
+    > = {},
+  ) =>
+    createRpcQueryOptions({
+      pathSegments,
+      input,
+      keyPrefix: resolveKeyPrefix(config.keyPrefix, options.keyPrefix),
+      type: 'query',
+      queryFn: queryFn(input),
+      defaults: config.queryDefaults as RpcQueryOptionsOverrides<
+        Rpc.SuccessExit<Current>,
+        RpcProcedureError<Current>,
+        Rpc.SuccessExit<Current>,
+        RpcQueryKey<Rpc.PayloadConstructor<Current>>
+      >,
+      overrides: options.overrides,
+    });
+
+  return {
+    ...base,
+    queryKey,
+    queryFn,
+    queryOptions,
+  } as unknown as RpcProcedureHelperFor<Current>;
+};
+
+const createEffectRpcAngularClientInstance = <Rpcs extends Rpc.Any>(
+  config: EffectRpcAngularClientConfig<Rpcs>,
+): EffectRpcAngularClient<Rpcs> => {
+  const root: Record<string, unknown> = {
+    pathKey: (pathSegments: readonly string[], options: RpcPathOptions = {}) =>
+      createRpcPathKey(pathSegments, {
+        keyPrefix: options.keyPrefix ?? config.keyPrefix,
+      }),
+    queryFilter: (pathSegments: readonly string[], options: RpcQueryFilterOptions = {}) =>
+      createRpcQueryFilter(pathSegments, {
+        keyPrefix: options.keyPrefix ?? config.keyPrefix,
+        exact: options.exact,
+      }),
+  };
+
+  for (const [tag, rpc] of config.group.requests.entries()) {
+    const helper = createProcedureHelper<Rpcs, Rpcs>(
+      config,
+      config.group,
+      tag,
+      rpc as unknown as Rpc.AnyWithProps,
+    );
+    assignNestedHelper(root, getPathSegments(tag), helper);
   }
 
-  queryFilter(
-    pathSegments: readonly string[],
-    options: RpcQueryFilterOptions = {},
-  ): QueryFilters<RpcPathKey> {
-    return createRpcQueryFilter(pathSegments, {
-      keyPrefix: options.keyPrefix ?? this.config.keyPrefix,
-      exact: options.exact,
-    });
-  }
-}
+  return root as EffectRpcAngularClient<Rpcs>;
+};
+
+export const createEffectRpcAngularClient = <Rpcs extends Rpc.Any>(
+  input: EffectRpcAngularClientConfigInput<Rpcs>,
+): EffectRpcAngularClientFactory<Rpcs> => {
+  const config = createEffectRpcAngularClientConfig(input);
+  const token = new InjectionToken<EffectRpcAngularClient<Rpcs>>('EFFECT_RPC_ANGULAR_CLIENT');
+
+  const providers = makeEnvironmentProviders([
+    {
+      provide: token,
+      useFactory: () => createEffectRpcAngularClientInstance(config),
+    },
+  ]);
+
+  const injectClient = () => inject(token);
+
+  return { token, providers, injectClient };
+};

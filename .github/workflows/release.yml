@@ -43,14 +43,44 @@ jobs:
           bun run ng build effect-platform-angular
           bun run ng build effect-angular-query
 
+      - name: Check if effect-platform-angular version is unpublished
+        id: check_effect_platform_angular
+        working-directory: dist/effect-platform-angular
+        run: |
+          PACKAGE_NAME="$(node -p "require('./package.json').name")"
+          PACKAGE_VERSION="$(node -p "require('./package.json').version")"
+          if npm view "${PACKAGE_NAME}@${PACKAGE_VERSION}" version >/dev/null 2>&1; then
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+            echo "${PACKAGE_NAME}@${PACKAGE_VERSION} is already published. Skipping publish."
+          else
+            echo "publish=true" >> "$GITHUB_OUTPUT"
+            echo "${PACKAGE_NAME}@${PACKAGE_VERSION} is not published yet. Will publish."
+          fi
+
       - name: Publish effect-platform-angular to npm
+        if: steps.check_effect_platform_angular.outputs.publish == 'true'
         working-directory: dist/effect-platform-angular
         env:
-          NODE_AUTH_TOKEN: ""
+          NODE_AUTH_TOKEN: ''
         run: npm publish
 
+      - name: Check if effect-angular-query version is unpublished
+        id: check_effect_angular_query
+        working-directory: dist/effect-angular-query
+        run: |
+          PACKAGE_NAME="$(node -p "require('./package.json').name")"
+          PACKAGE_VERSION="$(node -p "require('./package.json').version")"
+          if npm view "${PACKAGE_NAME}@${PACKAGE_VERSION}" version >/dev/null 2>&1; then
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+            echo "${PACKAGE_NAME}@${PACKAGE_VERSION} is already published. Skipping publish."
+          else
+            echo "publish=true" >> "$GITHUB_OUTPUT"
+            echo "${PACKAGE_NAME}@${PACKAGE_VERSION} is not published yet. Will publish."
+          fi
+
       - name: Publish effect-angular-query to npm
+        if: steps.check_effect_angular_query.outputs.publish == 'true'
         working-directory: dist/effect-angular-query
         env:
-          NODE_AUTH_TOKEN: ""
+          NODE_AUTH_TOKEN: ''
         run: npm publish

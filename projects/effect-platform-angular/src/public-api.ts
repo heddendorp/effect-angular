@@ -3,3 +3,4 @@
  */
 
 export * from './lib/effect-http-client';
+export * from './lib/effect-rpc-protocol-http-layer';

@@ -23,16 +23,25 @@ bun add @effect/platform effect
 ### Register the adapter
 
 ```ts
-import { provideHttpClient } from '@angular/common/http';
+import { provideHttpClient, withInterceptors } from '@angular/common/http';
 import { bootstrapApplication } from '@angular/platform-browser';
-import { provideEffectHttpClient } from '@heddendorp/effect-platform-angular';
+import {
+  provideEffectHttpClient,
+  provideEffectRpcProtocolHttpLayer,
+} from '@heddendorp/effect-platform-angular';
 
 import { AppComponent } from './app/app.component';
 
 bootstrapApplication(AppComponent, {
-  providers: [provideHttpClient(), provideEffectHttpClient()],
+  providers: [
+    provideHttpClient(withInterceptors([/* app interceptors */])),
+    provideEffectHttpClient(),
+    provideEffectRpcProtocolHttpLayer({ url: '/rpc' }),
+  ],
 });
 ```
+
+Provider order matters: register `provideHttpClient(...)` first, then `provideEffectHttpClient()`, then `provideEffectRpcProtocolHttpLayer(...)`.
 
 ### Use the adapter in a service
 
@@ -60,6 +69,7 @@ export class ProfileService {
 ## Concepts
 
 - Adapter boundaries: `provideEffectHttpClient()` exposes an Effect HttpClient backed by Angular HttpClient.
+- Layer boundaries: `provideEffectHttpClientLayer()` and `provideEffectRpcProtocolHttpLayer(...)` expose DI-provided Effect layers for direct `Layer` composition.
 - Request mapping: `HttpBody` values become Angular request bodies; stream bodies are buffered into a `Uint8Array`.
 - Response mapping: non-2xx HTTP responses are returned as `HttpClientResponse` values, while transport failures map to `HttpClientError.RequestError`.
 - Cancellation: canceling an Effect fiber aborts the underlying HttpClient subscription.
@@ -73,12 +83,11 @@ If you also want auto-generated TanStack Query + Mutation helpers with one injec
 
 ```ts
 import { inject, Injectable } from '@angular/core';
-import { HttpClient } from '@effect/platform';
-import { Rpc, RpcClient, RpcClientError, RpcGroup, RpcSerialization } from '@effect/rpc';
+import { Rpc, RpcClient, RpcClientError, RpcGroup } from '@effect/rpc';
 import * as Effect from 'effect/Effect';
 import * as Layer from 'effect/Layer';
 import * as Schema from 'effect/Schema';
-import { EFFECT_HTTP_CLIENT } from '@heddendorp/effect-platform-angular';
+import { EFFECT_RPC_PROTOCOL_HTTP_LAYER } from '@heddendorp/effect-platform-angular';
 
 const Ping = Rpc.make('Ping', {
   payload: Schema.Struct({ message: Schema.String }),
@@ -122,13 +131,7 @@ const createPromiseClient = (
 
 @Injectable({ providedIn: 'root' })
 export class AppRpcClient implements AppRpcPromiseClient {
-  private readonly httpClient = inject(EFFECT_HTTP_CLIENT);
-  private readonly rpcLayer = RpcClient.layerProtocolHttp({ url: '/rpc' }).pipe(
-    Layer.provide([
-      RpcSerialization.layerJson,
-      Layer.succeed(HttpClient.HttpClient, this.httpClient),
-    ]),
-  );
+  private readonly rpcLayer = inject(EFFECT_RPC_PROTOCOL_HTTP_LAYER);
 
   readonly Ping: AppRpcPromiseClient['Ping'];
 
@@ -145,6 +148,13 @@ export class AppRpcClient implements AppRpcPromiseClient {
 
 - `provideEffectHttpClient(): EnvironmentProviders` - registers the Angular HttpClient adapter.
 - `EFFECT_HTTP_CLIENT: InjectionToken<HttpClient.HttpClient>` - the adapter instance to inject and provide to Effect.
+- `provideEffectHttpClientLayer(): EnvironmentProviders` - registers a DI-provided `Layer.succeed(HttpClient.HttpClient, client)` layer.
+- `EFFECT_HTTP_CLIENT_LAYER: InjectionToken<Layer.Layer<HttpClient.HttpClient, never, never>>` - Effect HttpClient layer token.
+- `provideEffectRpcProtocolHttpLayer(options): EnvironmentProviders` - registers an RPC protocol HTTP transport layer that uses `EFFECT_HTTP_CLIENT`.
+- `EFFECT_RPC_PROTOCOL_HTTP_LAYER: InjectionToken<Layer.Layer<RpcClient.Protocol, never, never>>` - RPC protocol layer token.
+- `EffectRpcHttpLayerOptions`:
+  - `url: string | (() => string)` - endpoint URL (function form is resolved when Angular creates the layer).
+  - `serializationLayer?: Layer.Layer<RpcSerialization.RpcSerialization, never, never>` - defaults to `RpcSerialization.layerJson`.
 
 ## Compatibility
 

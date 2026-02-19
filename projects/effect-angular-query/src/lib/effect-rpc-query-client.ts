@@ -262,35 +262,6 @@ const createStreamUnsupportedError = (tag: string): Error =>
 const asRecord = (value: unknown): Record<string, unknown> | undefined =>
   typeof value === 'object' && value !== null ? (value as Record<string, unknown>) : undefined;
 
-const resolveProcedureCall = <Current extends Rpc.Any>(
-  client: unknown,
-  pathSegments: readonly string[],
-): ((
-  input: Rpc.PayloadConstructor<Current>,
-) => Effect.Effect<Rpc.SuccessExit<Current>, unknown, never>) => {
-  let target: unknown = client;
-
-  for (const segment of pathSegments) {
-    const container = asRecord(target);
-    if (!container || !(segment in container)) {
-      throw new Error(
-        `RPC procedure "${pathSegments.join('.')}" is missing on the generated client.`,
-      );
-    }
-    target = container[segment];
-  }
-
-  if (typeof target !== 'function') {
-    throw new Error(
-      `RPC procedure "${pathSegments.join('.')}" resolved to a non-callable value on the generated client.`,
-    );
-  }
-
-  return target as (
-    input: Rpc.PayloadConstructor<Current>,
-  ) => Effect.Effect<Rpc.SuccessExit<Current>, unknown, never>;
-};
-
 const assignNestedHelper = (
   root: Record<string, unknown>,
   pathSegments: readonly string[],
@@ -357,10 +328,9 @@ const createProcedureHelper = <Rpcs extends Rpc.Any, Current extends Rpcs>(
   const callEffect = (input: Rpc.PayloadConstructor<Current>) => {
     throwIfStreamProcedure();
 
-    const program = Effect.flatMap(RpcClient.make(group), (client) => {
-      const call = resolveProcedureCall<Current>(client, pathSegments);
-      return call(input);
-    }).pipe(Effect.provide(config.rpcLayer), Effect.scoped);
+    const program = Effect.flatMap(RpcClient.make(group, { flatten: true }), (client) =>
+      client(tag as Rpc.Tag<Current>, input),
+    ).pipe(Effect.provide(config.rpcLayer), Effect.scoped);
 
     return program as Effect.Effect<Rpc.SuccessExit<Current>, RpcProcedureError<Current>, never>;
   };

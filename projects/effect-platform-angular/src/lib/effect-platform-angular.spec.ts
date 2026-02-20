@@ -161,7 +161,10 @@ describe('Angular HttpClient adapter request mapping', () => {
     const response = Effect.runPromise(adapter.execute(request));
     const testRequest = controller.expectOne((req) => req.url === 'https://example.test/body');
 
-    expect(testRequest.request.body).toEqual(body.body);
+    expect(testRequest.request.body).toBeInstanceOf(ArrayBuffer);
+    expect(Array.from(new Uint8Array(testRequest.request.body as ArrayBuffer))).toEqual(
+      Array.from(body.body),
+    );
     expect(testRequest.request.headers.get('content-type')).toBe('text/plain');
 
     testRequest.flush(new ArrayBuffer(0));
@@ -177,6 +180,38 @@ describe('Angular HttpClient adapter request mapping', () => {
     const testRequest = controller.expectOne((req) => req.url === 'https://example.test/raw');
 
     expect(testRequest.request.body).toEqual({ ok: true });
+
+    testRequest.flush(new ArrayBuffer(0));
+    await response;
+  });
+
+  it('encodes JSON Uint8Array bodies as JSON text for Angular HttpClient', async () => {
+    const jsonBody = Effect.runSync(HttpBody.json({ _tag: 'Ping' }));
+    const request = HttpClientRequest.post('https://example.test/rpc', {
+      body: jsonBody,
+    });
+
+    const response = Effect.runPromise(adapter.execute(request));
+    const testRequest = controller.expectOne((req) => req.url === 'https://example.test/rpc');
+
+    // Regression guard: must be string, not Uint8Array/object.
+    expect(typeof testRequest.request.body).toBe('string');
+    expect(testRequest.request.body).toBe('{"_tag":"Ping"}');
+
+    testRequest.flush(new ArrayBuffer(0));
+    await response;
+  });
+
+  it('keeps non-JSON Uint8Array payloads binary', async () => {
+    const request = HttpClientRequest.post('https://example.test/bin', {
+      body: HttpBody.uint8Array(new Uint8Array([1, 2, 3]), 'application/octet-stream'),
+    });
+
+    const response = Effect.runPromise(adapter.execute(request));
+    const testRequest = controller.expectOne((req) => req.url === 'https://example.test/bin');
+
+    expect(testRequest.request.body).toBeInstanceOf(ArrayBuffer);
+    expect(Array.from(new Uint8Array(testRequest.request.body as ArrayBuffer))).toEqual([1, 2, 3]);
 
     testRequest.flush(new ArrayBuffer(0));
     await response;

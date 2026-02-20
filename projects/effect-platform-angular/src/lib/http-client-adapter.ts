@@ -38,6 +38,17 @@ const appendChunk = (acc: Uint8Array, chunk: Uint8Array): Uint8Array => {
   return next;
 };
 
+const textDecoder = new TextDecoder();
+
+const isJsonContentType = (contentType: string | undefined): boolean =>
+  typeof contentType === 'string' &&
+  contentType
+    .split(';', 1)[0]
+    ?.trim()
+    .toLowerCase() === 'application/json';
+
+const toArrayBuffer = (bytes: Uint8Array): ArrayBuffer => new Uint8Array(bytes).buffer;
+
 // Normalize Effect request bodies into something HttpClient can send.
 const resolveBody = (
   request: HttpClientRequest.HttpClientRequest,
@@ -49,7 +60,9 @@ const resolveBody = (
     case 'Raw':
       return Effect.succeed(body.body);
     case 'Uint8Array':
-      return Effect.succeed(body.body);
+      return Effect.succeed(
+        isJsonContentType(body.contentType) ? textDecoder.decode(body.body) : toArrayBuffer(body.body),
+      );
     case 'FormData':
       return Effect.succeed(body.formData);
     case 'Stream':

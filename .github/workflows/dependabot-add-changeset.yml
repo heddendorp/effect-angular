@@ -150,6 +150,7 @@ jobs:
           set -euo pipefail
 
           FILE=".changeset/dependabot-pr-${PR_NUMBER}.md"
+          mkdir -p .changeset
 
           dependency_lines=""
           if [ -n "${UPDATED_DEPENDENCIES_JSON}" ] && [ "${UPDATED_DEPENDENCIES_JSON}" != "[]" ]; then

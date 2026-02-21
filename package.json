@@ -42,7 +42,7 @@
     "@tanstack/angular-query-experimental": "^5.90.25",
     "@types/node": "^22.10.2",
     "@vitest/coverage-v8": "^4.0.18",
-    "jsdom": "^27.1.0",
+    "jsdom": "^28.1.0",
     "ng-packagr": "^21.1.0",
     "typescript": "~5.9.2",
     "vitest": "^4.0.8"

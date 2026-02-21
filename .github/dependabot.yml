@@ -2,10 +2,7 @@ version: 2
 
 updates:
   - package-ecosystem: 'bun'
-    directories:
-      - '/'
-      - '/projects/effect-platform-angular'
-      - '/projects/effect-angular-query'
+    directory: '/'
     target-branch: 'main'
     schedule:
       interval: 'weekly'

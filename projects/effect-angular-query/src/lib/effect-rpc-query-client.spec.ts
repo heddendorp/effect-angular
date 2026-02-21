@@ -18,8 +18,12 @@ const Save = Rpc.make('save', {
   payload: Schema.Struct({ id: Schema.String, name: Schema.String }),
   success: Schema.Struct({ ok: Schema.Boolean }),
 });
+const FinanceReceiptsMy = Rpc.make('finance.receipts.my', {
+  payload: Schema.Undefined,
+  success: Schema.Struct({ total: Schema.Number }),
+});
 
-class AppRpcs extends RpcGroup.make(Ping, asRpcMutation(Save)) {}
+class AppRpcs extends RpcGroup.make(Ping, asRpcMutation(Save), FinanceReceiptsMy) {}
 
 const createRpcLayer = () =>
   Layer.effect(
@@ -66,5 +70,11 @@ describe('Effect RPC Angular client DI', () => {
       { input: { id: '1' }, type: 'query' },
     ]);
     expect(first.save.mutationKey()).toEqual([['app', 'save'], { type: 'mutation' }]);
+    const nestedOptions = first.finance.receipts.my.queryOptions(undefined);
+    expect(nestedOptions.meta).toMatchObject({
+      rpc: {
+        path: ['finance', 'receipts', 'my'],
+      },
+    });
   });
 });

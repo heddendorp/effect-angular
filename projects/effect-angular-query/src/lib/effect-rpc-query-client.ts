@@ -112,18 +112,11 @@ export const createEffectRpcAngularClientConfig = <Rpcs extends Rpc.Any>(
   mutationDefaults: config.mutationDefaults ?? {},
 });
 
-type RpcTag<Rpcs extends Rpc.Any> = Rpc.Tag<Rpcs>;
-
-type RpcPrefix<Tag extends string> = Tag extends `${infer Prefix}.${string}` ? Prefix : never;
-
-type RpcPrefixes<Rpcs extends Rpc.Any> = RpcPrefix<RpcTag<Rpcs>>;
-
-type RpcPrefixed<Rpcs extends Rpc.Any, Prefix extends string> = Extract<
-  Rpcs,
-  { readonly _tag: `${Prefix}.${string}` }
->;
-
-type RpcNonPrefixed<Rpcs extends Rpc.Any> = Exclude<Rpcs, { readonly _tag: `${string}.${string}` }>;
+type UnionToIntersection<Current> = (
+  Current extends unknown ? (arg: Current) => void : never
+) extends (arg: infer Intersection) => void
+  ? Intersection
+  : never;
 
 export type RpcProcedureError<Current extends Rpc.Any> =
   | Rpc.ErrorExit<Current>
@@ -211,18 +204,15 @@ type RpcProcedureHelperFor<Current extends Rpc.Any> =
     ? RpcMutationProcedureHelper<Current>
     : RpcQueryProcedureHelper<Current>;
 
-type RpcHelpersFrom<Rpcs extends Rpc.Any, Prefix extends string> = {
-  readonly [Current in Rpcs as Current['_tag'] extends `${Prefix}.${infer Method}`
-    ? Method
-    : Current['_tag']]: RpcProcedureHelperFor<Current>;
-};
+type RpcNestedHelpersFromTag<Tag extends string, Helper> = Tag extends `${infer Head}.${infer Tail}`
+  ? { readonly [Current in Head]: RpcNestedHelpersFromTag<Tail, Helper> }
+  : { readonly [Current in Tag]: Helper };
 
-export type EffectRpcAngularClient<Rpcs extends Rpc.Any> = RpcHelpersFrom<
-  RpcNonPrefixed<Rpcs>,
-  ''
-> & {
-  readonly [Prefix in RpcPrefixes<Rpcs>]: RpcHelpersFrom<RpcPrefixed<Rpcs, Prefix>, Prefix>;
-} & {
+type RpcNestedHelpersFrom<Rpcs extends Rpc.Any> = UnionToIntersection<
+  Rpcs extends Rpc.Any ? RpcNestedHelpersFromTag<Rpcs['_tag'], RpcProcedureHelperFor<Rpcs>> : never
+>;
+
+export type EffectRpcAngularClient<Rpcs extends Rpc.Any> = RpcNestedHelpersFrom<Rpcs> & {
   readonly pathKey: (pathSegments: readonly string[], options?: RpcPathOptions) => RpcPathKey;
   readonly queryFilter: (
     pathSegments: readonly string[],

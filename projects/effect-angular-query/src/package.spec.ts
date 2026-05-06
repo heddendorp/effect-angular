@@ -33,7 +33,6 @@ describe('effect-angular-query package metadata', () => {
     expect(readPeerDependencies()).toMatchObject({
       '@angular/common': expect.any(String),
       '@angular/core': expect.any(String),
-      '@effect/rpc': expect.any(String),
       '@tanstack/angular-query-experimental': expect.any(String),
       effect: expect.any(String),
     });

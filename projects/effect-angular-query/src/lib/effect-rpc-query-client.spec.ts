@@ -1,8 +1,8 @@
 import { TestBed } from '@angular/core/testing';
-import { Rpc, RpcClient, RpcGroup } from '@effect/rpc';
 import * as Effect from 'effect/Effect';
 import * as Layer from 'effect/Layer';
 import * as Schema from 'effect/Schema';
+import { Rpc, RpcClient, RpcGroup } from 'effect/unstable/rpc';
 
 import {
   asRpcMutation,

@@ -18,7 +18,7 @@ This workspace currently ships two Angular libraries:
 ## Requirements
 
 - Node.js 22+ recommended
-- Bun `1.2.x`
+- Bun `1.3.x`
 - Angular `21+`
 
 ## Quickstart
@@ -35,10 +35,11 @@ Build the workspace:
 bun run build
 ```
 
-Run tests:
+Run project-specific tests:
 
 ```bash
-bun run test -- --watch=false
+bun run ng test effect-platform-angular --watch=false
+bun run ng test effect-angular-query --watch=false
 ```
 
 ## Packages

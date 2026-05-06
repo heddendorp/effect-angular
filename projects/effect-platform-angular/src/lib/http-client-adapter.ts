@@ -10,7 +10,7 @@ import {
   HttpClientError,
   type HttpClientRequest,
   HttpClientResponse,
-} from '@effect/platform';
+} from 'effect/unstable/http';
 import * as Effect from 'effect/Effect';
 import * as Stream from 'effect/Stream';
 
@@ -18,14 +18,15 @@ import * as Stream from 'effect/Stream';
 const collectStreamBody = (
   request: HttpClientRequest.HttpClientRequest,
   body: HttpBody.Stream,
-): Effect.Effect<Uint8Array, HttpClientError.RequestError> =>
-  Effect.matchEffect(Effect.scoped(Stream.runFold(body.stream, new Uint8Array(0), appendChunk)), {
+): Effect.Effect<Uint8Array, HttpClientError.HttpClientError> =>
+  Effect.matchEffect(Effect.scoped(Stream.runFold(body.stream, () => new Uint8Array(0), appendChunk)), {
     onFailure: (cause) =>
       Effect.fail(
-        new HttpClientError.RequestError({
-          request,
-          reason: 'Encode',
-          cause,
+        new HttpClientError.HttpClientError({
+          reason: new HttpClientError.EncodeError({
+            request,
+            cause,
+          }),
         }),
       ),
     onSuccess: (payload) => Effect.succeed(payload),
@@ -52,7 +53,7 @@ const toArrayBuffer = (bytes: Uint8Array): ArrayBuffer => new Uint8Array(bytes).
 // Normalize Effect request bodies into something HttpClient can send.
 const resolveBody = (
   request: HttpClientRequest.HttpClientRequest,
-): Effect.Effect<unknown, HttpClientError.RequestError> => {
+): Effect.Effect<unknown, HttpClientError.HttpClientError> => {
   const body = request.body;
   switch (body._tag) {
     case 'Empty':
@@ -103,57 +104,60 @@ const toEffectResponse = (
 export const createAngularHttpClient = (httpClient: AngularHttpClient): EffectHttpClient.HttpClient =>
   EffectHttpClient.make((request, url, signal) =>
     Effect.flatMap(resolveBody(request), (body) =>
-      Effect.async((resume) => {
-        const subscription = httpClient
-          .request('' + request.method, url.toString(), {
-            body,
-            headers: new HttpHeaders(request.headers),
-            observe: 'response',
-            responseType: 'arraybuffer',
-          })
-          .subscribe({
-            next: (response) => resume(Effect.succeed(toEffectResponse(request, response))),
-            error: (cause) => {
-              // HttpClient reports non-2xx statuses as HttpErrorResponse; map them into a response.
-              if (cause instanceof HttpErrorResponse && cause.status !== 0) {
-                const response = new HttpResponse<ArrayBuffer>({
-                  body: (cause.error as ArrayBuffer | null) ?? null,
-                  headers: cause.headers,
-                  status: cause.status,
-                  statusText: cause.statusText,
-                  url: cause.url ?? undefined,
-                });
-                resume(Effect.succeed(toEffectResponse(request, response)));
-                return;
-              }
+      Effect.callback<HttpClientResponse.HttpClientResponse, HttpClientError.HttpClientError>(
+        (resume) => {
+          const subscription = httpClient
+            .request('' + request.method, url.toString(), {
+              body,
+              headers: new HttpHeaders(request.headers),
+              observe: 'response',
+              responseType: 'arraybuffer',
+            })
+            .subscribe({
+              next: (response) => resume(Effect.succeed(toEffectResponse(request, response))),
+              error: (cause) => {
+                // HttpClient reports non-2xx statuses as HttpErrorResponse; map them into a response.
+                if (cause instanceof HttpErrorResponse && cause.status !== 0) {
+                  const response = new HttpResponse<ArrayBuffer>({
+                    body: (cause.error as ArrayBuffer | null) ?? null,
+                    headers: cause.headers,
+                    status: cause.status,
+                    statusText: cause.statusText,
+                    url: cause.url ?? undefined,
+                  });
+                  resume(Effect.succeed(toEffectResponse(request, response)));
+                  return;
+                }
 
-              resume(
-                Effect.fail(
-                  new HttpClientError.RequestError({
-                    request,
-                    reason: 'Transport',
-                    cause,
-                  }),
-                ),
-              );
-            },
+                resume(
+                  Effect.fail(
+                    new HttpClientError.HttpClientError({
+                      reason: new HttpClientError.TransportError({
+                        request,
+                        cause,
+                      }),
+                    }),
+                  ),
+                );
+              },
+            });
+
+          // Abort signals should cancel the in-flight HttpClient request.
+          const abort = () => {
+            subscription.unsubscribe();
+          };
+
+          if (signal.aborted) {
+            abort();
+          } else {
+            signal.addEventListener('abort', abort, { once: true });
+          }
+
+          return Effect.sync(() => {
+            signal.removeEventListener('abort', abort);
+            subscription.unsubscribe();
           });
-
-        // Abort signals should cancel the in-flight HttpClient request.
-        const abort = () => {
-          subscription.unsubscribe();
-        };
-
-        if (signal.aborted) {
-          abort();
-        } else {
-          signal.addEventListener('abort', abort, { once: true });
-        }
-
-        return Effect.sync(() => {
-          signal.removeEventListener('abort', abort);
-          subscription.unsubscribe();
-        });
-      }),
+        },
+      ),
     ),
   );

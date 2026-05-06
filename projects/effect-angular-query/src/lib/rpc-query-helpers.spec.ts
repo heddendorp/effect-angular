@@ -1,9 +1,9 @@
 import { TestBed } from '@angular/core/testing';
 import { QueryClient } from '@tanstack/angular-query-experimental';
-import { Rpc, RpcClient, RpcClientError, RpcGroup, RpcSchema } from '@effect/rpc';
 import * as Effect from 'effect/Effect';
 import * as Layer from 'effect/Layer';
 import * as Schema from 'effect/Schema';
+import { Rpc, RpcClient, RpcClientError, RpcGroup, RpcSchema } from 'effect/unstable/rpc';
 
 import { asRpcMutation, createEffectRpcAngularClient } from './effect-rpc-query-client';
 
@@ -19,11 +19,16 @@ const UpdateUserName = Rpc.make('users.updateName', {
 
 const UserEvents = Rpc.make('users.events', {
   payload: Schema.Struct({ id: Schema.String }),
-  success: RpcSchema.Stream({ success: Schema.String, failure: Schema.Never }),
+  success: RpcSchema.Stream(Schema.String, Schema.Never),
 });
 
 class AppRpcs extends RpcGroup.make(GetUser, asRpcMutation(UpdateUserName)) {}
 class StreamRpcs extends RpcGroup.make(UserEvents) {}
+
+const createRpcClientError = (message: string): RpcClientError.RpcClientError =>
+  new RpcClientError.RpcClientError({
+    reason: new RpcClientError.RpcClientDefect({ message, cause: undefined }),
+  });
 
 const createFailingRpcLayer = (error: RpcClientError.RpcClientError) =>
   Layer.effect(
@@ -41,9 +46,7 @@ describe('Effect RPC Angular client helpers', () => {
   it('builds query helpers and query options for query procedures', () => {
     const rpcClient = createEffectRpcAngularClient({
       group: AppRpcs,
-      rpcLayer: createFailingRpcLayer(
-        new RpcClientError.RpcClientError({ reason: 'Protocol', message: 'Not used' }),
-      ),
+      rpcLayer: createFailingRpcLayer(createRpcClientError('Not used')),
       keyPrefix: 'app',
       queryDefaults: { staleTime: 5000 },
     });
@@ -68,9 +71,7 @@ describe('Effect RPC Angular client helpers', () => {
   it('builds mutation helpers and mutation options for mutation procedures', () => {
     const rpcClient = createEffectRpcAngularClient({
       group: AppRpcs,
-      rpcLayer: createFailingRpcLayer(
-        new RpcClientError.RpcClientError({ reason: 'Protocol', message: 'Not used' }),
-      ),
+      rpcLayer: createFailingRpcLayer(createRpcClientError('Not used')),
       keyPrefix: ['app', 'v1'],
       mutationDefaults: { retry: 1 },
     });
@@ -93,10 +94,7 @@ describe('Effect RPC Angular client helpers', () => {
   });
 
   it('executes queryFn and mutationFn through the rpc layer', async () => {
-    const error = new RpcClientError.RpcClientError({
-      reason: 'Protocol',
-      message: 'Test failure',
-    });
+    const error = createRpcClientError('Test failure');
 
     const rpcClient = createEffectRpcAngularClient({
       group: AppRpcs,
@@ -116,22 +114,22 @@ describe('Effect RPC Angular client helpers', () => {
       meta: undefined,
     };
 
-    await expect(queryFn(queryContext)).rejects.toMatchObject({ message: 'Test failure' });
+    await expect(queryFn(queryContext)).rejects.toMatchObject({
+      message: 'RpcClientDefect: Test failure',
+    });
 
     const mutationFn = client.users.updateName.mutationFn();
     await expect(
       mutationFn({ id: '1', name: 'Ada' }, { client: new QueryClient(), meta: undefined }),
     ).rejects.toMatchObject({
-      message: 'Test failure',
+      message: 'RpcClientDefect: Test failure',
     });
   });
 
   it('builds path helpers for subtree invalidation', () => {
     const rpcClient = createEffectRpcAngularClient({
       group: AppRpcs,
-      rpcLayer: createFailingRpcLayer(
-        new RpcClientError.RpcClientError({ reason: 'Protocol', message: 'Not used' }),
-      ),
+      rpcLayer: createFailingRpcLayer(createRpcClientError('Not used')),
       keyPrefix: ['app', 'v1'],
     });
 
@@ -146,9 +144,7 @@ describe('Effect RPC Angular client helpers', () => {
   it('throws explicit errors for stream procedures', () => {
     const rpcClient = createEffectRpcAngularClient({
       group: StreamRpcs,
-      rpcLayer: createFailingRpcLayer(
-        new RpcClientError.RpcClientError({ reason: 'Protocol', message: 'Not used' }),
-      ),
+      rpcLayer: createFailingRpcLayer(createRpcClientError('Not used')),
     });
 
     TestBed.configureTestingModule({ providers: [rpcClient.providers] });

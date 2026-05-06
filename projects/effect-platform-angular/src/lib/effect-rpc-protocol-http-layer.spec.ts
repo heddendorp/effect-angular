@@ -1,12 +1,10 @@
 import { HttpRequest, provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
-import * as Rpc from '@effect/rpc/Rpc';
-import * as RpcClient from '@effect/rpc/RpcClient';
-import * as RpcGroup from '@effect/rpc/RpcGroup';
 import * as Schema from 'effect/Schema';
 import * as Effect from 'effect/Effect';
 import * as Exit from 'effect/Exit';
+import { Rpc, RpcClient, RpcGroup } from 'effect/unstable/rpc';
 
 import {
   EFFECT_HTTP_CLIENT_LAYER,
@@ -123,7 +121,7 @@ describe('Effect RPC protocol HTTP layer provider', () => {
 
     const request = await waitForRequest(
       controller,
-      (httpRequest) => httpRequest.url.endsWith('/rpc') && httpRequest.method === 'POST',
+      (httpRequest) => httpRequest.url.endsWith('/rpc/') && httpRequest.method === 'POST',
     );
 
     const decodedBody = JSON.parse(decodeBody(request.request.body)) as

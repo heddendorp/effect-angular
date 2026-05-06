@@ -1,12 +1,11 @@
 import { HttpClient, HttpRequest, provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
-import * as Cause from 'effect/Cause';
 import * as Exit from 'effect/Exit';
 import * as Option from 'effect/Option';
 import * as Stream from 'effect/Stream';
-import { Headers, HttpBody, HttpClientError, HttpClientRequest } from '@effect/platform';
 import * as Effect from 'effect/Effect';
+import { Headers, HttpBody, HttpClientError, HttpClientRequest } from 'effect/unstable/http';
 
 import { EFFECT_HTTP_CLIENT, provideEffectHttpClient } from './effect-http-client';
 import { createAngularHttpClient } from './http-client-adapter';
@@ -36,11 +35,12 @@ describe('Effect HTTP client provider', () => {
 
     expect(Exit.isFailure(exit)).toBe(true);
     if (Exit.isFailure(exit)) {
-      const failure = Cause.failureOption(exit.cause);
+      const failure = Exit.findErrorOption(exit);
 
       expect(Option.isSome(failure)).toBe(true);
       if (Option.isSome(failure)) {
-        expect(failure.value).toBeInstanceOf(HttpClientError.RequestError);
+        expect(failure.value).toBeInstanceOf(HttpClientError.HttpClientError);
+        expect(failure.value.reason).toBeInstanceOf(HttpClientError.TransportError);
       }
     }
   });
@@ -259,11 +259,12 @@ describe('Angular HttpClient adapter request mapping', () => {
 
     expect(Exit.isFailure(exit)).toBe(true);
     if (Exit.isFailure(exit)) {
-      const failure = Cause.failureOption(exit.cause);
+      const failure = Exit.findErrorOption(exit);
 
       expect(Option.isSome(failure)).toBe(true);
       if (Option.isSome(failure)) {
-        expect(failure.value).toBeInstanceOf(HttpClientError.RequestError);
+        expect(failure.value).toBeInstanceOf(HttpClientError.HttpClientError);
+        expect(failure.value.reason).toBeInstanceOf(HttpClientError.TransportError);
       }
     }
   });

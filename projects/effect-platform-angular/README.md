@@ -17,7 +17,7 @@ bun add @heddendorp/effect-platform-angular
 Install required peers in your app:
 
 ```bash
-bun add @effect/platform effect
+bun add effect
 ```
 
 ### Register the adapter
@@ -47,8 +47,8 @@ Provider order matters: register `provideHttpClient(...)` first, then `provideEf
 
 ```ts
 import { inject, Injectable } from '@angular/core';
-import { HttpClient } from '@effect/platform';
 import * as Effect from 'effect/Effect';
+import { HttpClient } from 'effect/unstable/http';
 import { EFFECT_HTTP_CLIENT } from '@heddendorp/effect-platform-angular';
 
 @Injectable({ providedIn: 'root' })
@@ -71,22 +71,22 @@ export class ProfileService {
 - Adapter boundaries: `provideEffectHttpClient()` exposes an Effect HttpClient backed by Angular HttpClient.
 - Layer boundaries: `provideEffectHttpClientLayer()` and `provideEffectRpcProtocolHttpLayer(...)` expose DI-provided Effect layers for direct `Layer` composition.
 - Request mapping: `HttpBody` values become Angular request bodies; stream bodies are buffered into a `Uint8Array`.
-- Response mapping: non-2xx HTTP responses are returned as `HttpClientResponse` values, while transport failures map to `HttpClientError.RequestError`.
+- Response mapping: non-2xx HTTP responses are returned as `HttpClientResponse` values, while transport failures map to `HttpClientError.HttpClientError` with a `TransportError` reason.
 - Cancellation: canceling an Effect fiber aborts the underlying HttpClient subscription.
 - DI + Effect: inject `EFFECT_HTTP_CLIENT` and provide it to Effect with `Effect.provideService(HttpClient.HttpClient, client)`.
 
 ## Effect RPC (minimal example)
 
-This example shows the intended path for using Effect RPC over HTTP with Angular. It assumes you have a server exposing the Effect RPC HTTP protocol at `/rpc` and that `@effect/rpc` is installed in your app. The Angular service is the boundary where you stop Effect-style handling and return Promises to components, so components can inject the client and call procedures directly.
+This example shows the intended path for using Effect RPC over HTTP with Angular. It assumes you have a server exposing the Effect RPC HTTP protocol at `/rpc`. The Angular service is the boundary where you stop Effect-style handling and return Promises to components, so components can inject the client and call procedures directly.
 
 If you also want auto-generated TanStack Query + Mutation helpers with one injectable client, use `@heddendorp/effect-angular-query` on top of this transport layer.
 
 ```ts
 import { inject, Injectable } from '@angular/core';
-import { Rpc, RpcClient, RpcClientError, RpcGroup } from '@effect/rpc';
 import * as Effect from 'effect/Effect';
 import * as Layer from 'effect/Layer';
 import * as Schema from 'effect/Schema';
+import { Rpc, RpcClient, RpcClientError, RpcGroup } from 'effect/unstable/rpc';
 import { EFFECT_RPC_PROTOCOL_HTTP_LAYER } from '@heddendorp/effect-platform-angular';
 
 const Ping = Rpc.make('Ping', {
@@ -158,6 +158,5 @@ export class AppRpcClient implements AppRpcPromiseClient {
 
 ## Compatibility
 
-- Angular 21.x (peer dependency range currently `^21.1.0`)
-- `@effect/platform` 0.94+
-- `effect` 3.19+
+- Angular 21.x (peer dependency range currently `^21.2.0`)
+- Effect v4 beta (`effect >=4.0.0-beta.60 <5`)

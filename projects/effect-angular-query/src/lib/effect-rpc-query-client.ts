@@ -10,15 +10,11 @@ import type {
   DefaultError,
   QueryFilters,
 } from '@tanstack/angular-query-experimental';
-import type * as Rpc from '@effect/rpc/Rpc';
-import * as RpcClient from '@effect/rpc/RpcClient';
-import type * as RpcClientError from '@effect/rpc/RpcClientError';
-import type * as RpcGroup from '@effect/rpc/RpcGroup';
-import * as RpcSchema from '@effect/rpc/RpcSchema';
 import * as Context from 'effect/Context';
 import * as Effect from 'effect/Effect';
 import type * as Layer from 'effect/Layer';
 import * as Option from 'effect/Option';
+import { Rpc, RpcClient, type RpcClientError, type RpcGroup, RpcSchema } from 'effect/unstable/rpc';
 
 import { createRpcMutationOptions } from './rpc-mutation-options';
 import type { RpcMutationOptionsOverrides } from './rpc-mutation-options';
@@ -38,7 +34,7 @@ import type {
 
 export type RpcProcedureKind = 'query' | 'mutation';
 
-const RPC_PROCEDURE_KIND_ANNOTATION = Context.GenericTag<{ readonly kind: RpcProcedureKind }>(
+const RPC_PROCEDURE_KIND_ANNOTATION = Context.Service<{ readonly kind: RpcProcedureKind }>(
   'effect-angular/RpcProcedureKind',
 );
 
@@ -51,7 +47,7 @@ type RpcProcedureBrand<Kind extends RpcProcedureKind> = {
 type RpcMarkable = Rpc.Any &
   Rpc.AnyWithProps & {
     readonly annotate: <Identifier, Service>(
-      tag: Context.Tag<Identifier, Service>,
+      tag: Context.Key<Identifier, Service>,
       value: Service,
     ) => unknown;
   };
@@ -318,9 +314,12 @@ const createProcedureHelper = <Rpcs extends Rpc.Any, Current extends Rpcs>(
   const callEffect = (input: Rpc.PayloadConstructor<Current>) => {
     throwIfStreamProcedure();
 
-    const program = Effect.flatMap(RpcClient.make(group, { flatten: true }), (client) =>
-      client(tag as Rpc.Tag<Current>, input),
-    ).pipe(Effect.provide(config.rpcLayer), Effect.scoped);
+    const program = Effect.flatMap(RpcClient.make(group, { flatten: true }), (client) => {
+      const callProcedure =
+        client as RpcClient.RpcClient.Flat<Current, RpcClientError.RpcClientError>;
+
+      return callProcedure(tag as Rpc.Tag<Current>, input);
+    }).pipe(Effect.provide(config.rpcLayer), Effect.scoped);
 
     return program as Effect.Effect<Rpc.SuccessExit<Current>, RpcProcedureError<Current>, never>;
   };

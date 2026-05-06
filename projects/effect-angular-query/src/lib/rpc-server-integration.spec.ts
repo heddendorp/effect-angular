@@ -1,13 +1,11 @@
 import { TestBed } from '@angular/core/testing';
-import * as Etag from '@effect/platform/Etag';
-import * as FetchHttpClient from '@effect/platform/FetchHttpClient';
-import * as FileSystem from '@effect/platform/FileSystem';
-import * as HttpPlatform from '@effect/platform/HttpPlatform';
-import * as Path from '@effect/platform/Path';
-import { Rpc, RpcClient, RpcGroup, RpcSerialization, RpcServer } from '@effect/rpc';
 import * as Effect from 'effect/Effect';
+import * as FileSystem from 'effect/FileSystem';
 import * as Layer from 'effect/Layer';
+import * as Path from 'effect/Path';
 import * as Schema from 'effect/Schema';
+import { Etag, FetchHttpClient, HttpPlatform, HttpRouter } from 'effect/unstable/http';
+import { Rpc, RpcClient, RpcGroup, RpcSerialization, RpcServer } from 'effect/unstable/rpc';
 
 import { createEffectRpcAngularClient } from './effect-rpc-query-client';
 
@@ -42,16 +40,21 @@ describe('Effect RPC Angular client integration with RpcServer', () => {
     const fileSystemLayer = FileSystem.layerNoop({});
     const httpPlatformLayer = HttpPlatform.layer.pipe(Layer.provide(fileSystemLayer));
 
-    const webHandler = RpcServer.toWebHandler(AppRpcs, {
-      layer: Layer.mergeAll(
-        AppRpcsLive,
-        RpcSerialization.layerJson,
-        Path.layer,
-        fileSystemLayer,
-        Etag.layer,
-        httpPlatformLayer,
+    const webHandler = HttpRouter.toWebHandler(
+      RpcServer.layerHttp({ group: AppRpcs, path: '/rpc', protocol: 'http' }).pipe(
+        Layer.provideMerge(
+          Layer.mergeAll(
+            AppRpcsLive,
+            RpcSerialization.layerJson,
+            Path.layer,
+            fileSystemLayer,
+            Etag.layer,
+            httpPlatformLayer,
+          ),
+        ),
       ),
-    });
+      { disableLogger: true },
+    );
     let observedTag: string | undefined;
 
     const fetchFromRpcServer: typeof fetch = async (input, init) => {
@@ -61,7 +64,7 @@ describe('Effect RPC Angular client integration with RpcServer', () => {
     };
 
     const rpcLayer = RpcClient.layerProtocolHttp({ url: 'http://rpc.test/rpc' }).pipe(
-      Layer.provide([
+      Layer.provideMerge([
         RpcSerialization.layerJson,
         FetchHttpClient.layer.pipe(
           Layer.provide(Layer.succeed(FetchHttpClient.Fetch, fetchFromRpcServer)),

@@ -1,7 +1,7 @@
 import { HttpClient as AngularHttpClient } from '@angular/common/http';
 import { EnvironmentProviders, InjectionToken, inject, makeEnvironmentProviders } from '@angular/core';
-import { HttpClient as EffectHttpClient } from '@effect/platform';
 import * as Layer from 'effect/Layer';
+import { HttpClient as EffectHttpClient } from 'effect/unstable/http';
 
 import { createAngularHttpClient } from './http-client-adapter';
 

@@ -1,8 +1,7 @@
 import { EnvironmentProviders, InjectionToken, inject, makeEnvironmentProviders } from '@angular/core';
-import { HttpClient as EffectHttpClient } from '@effect/platform';
-import * as RpcClient from '@effect/rpc/RpcClient';
-import * as RpcSerialization from '@effect/rpc/RpcSerialization';
 import * as Layer from 'effect/Layer';
+import { HttpClient as EffectHttpClient } from 'effect/unstable/http';
+import { RpcClient, RpcSerialization } from 'effect/unstable/rpc';
 
 import { EFFECT_HTTP_CLIENT } from './effect-http-client';
 
@@ -29,7 +28,7 @@ export const provideEffectRpcProtocolHttpLayer = (
         const url = typeof options.url === 'function' ? options.url() : options.url;
 
         return RpcClient.layerProtocolHttp({ url }).pipe(
-          Layer.provide([
+          Layer.provideMerge([
             serializationLayer,
             Layer.succeed(EffectHttpClient.HttpClient, client),
           ]),

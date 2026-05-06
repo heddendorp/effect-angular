@@ -5,9 +5,9 @@ import {
   provideTanStackQuery,
   QueryClient,
 } from '@tanstack/angular-query-experimental';
-import * as RpcClient from '@effect/rpc/RpcClient';
 import * as Effect from 'effect/Effect';
 import * as Layer from 'effect/Layer';
+import { RpcClient } from 'effect/unstable/rpc';
 
 import { createEffectRpcAngularClient } from './lib/effect-rpc-query-client';
 import { AppRpcs } from './testing/rpc-contracts';

@@ -2,12 +2,12 @@ import { HttpClient, HttpRequest, provideHttpClient } from '@angular/common/http
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { Injectable, inject } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
-import { HttpClient as EffectHttpClient } from '@effect/platform';
-import { Rpc, RpcClient, RpcClientError, RpcGroup, RpcSerialization } from '@effect/rpc';
 import * as Effect from 'effect/Effect';
 import * as Exit from 'effect/Exit';
 import * as Layer from 'effect/Layer';
 import * as Schema from 'effect/Schema';
+import { HttpClient as EffectHttpClient } from 'effect/unstable/http';
+import { Rpc, RpcClient, RpcClientError, RpcGroup, RpcSerialization } from 'effect/unstable/rpc';
 
 import { createAngularHttpClient } from './lib/http-client-adapter';
 
@@ -112,7 +112,7 @@ class AppRpcClient implements AppRpcPromiseClient {
   private readonly adapter = createAngularHttpClient(inject(HttpClient));
   private readonly rpcLayer: Layer.Layer<RpcClient.Protocol, never, never> =
     RpcClient.layerProtocolHttp({ url: '/rpc' }).pipe(
-      Layer.provide([
+      Layer.provideMerge([
         RpcSerialization.layerJson,
         Layer.succeed(EffectHttpClient.HttpClient, this.adapter),
       ]),
@@ -150,7 +150,7 @@ describe('Effect RPC documentation example', () => {
 
     const testRequest = await waitForRequest(
       controller,
-      (req) => req.url.endsWith('/rpc') && req.method === 'POST',
+      (req) => req.url.endsWith('/rpc/') && req.method === 'POST',
     );
 
     // Confirm the client sends JSON over the HTTP RPC protocol endpoint.

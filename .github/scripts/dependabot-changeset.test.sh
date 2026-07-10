@@ -134,6 +134,9 @@ if grep -Fq 'effect-angular-query: patch' "${changeset}"; then
 fi
 grep -Fxq -- '- effect: 4.0.0-beta.1 -> 4.0.0-beta.2' "${changeset}" || \
   fail 'prevVersion/newVersion release note is incorrect'
+expected_dependency_section=$'### Updated dependencies\n\n- effect: 4.0.0-beta.1 -> 4.0.0-beta.2'
+grep -Fq -- "${expected_dependency_section}" "${changeset}" || \
+  fail 'generated changeset dependency list is not separated from its heading'
 assert_output "${output}" 'file=.changeset/dependabot-pr-42.md'
 
 run_classify() {

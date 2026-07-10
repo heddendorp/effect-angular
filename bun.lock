@@ -21,7 +21,7 @@
         "@angular/compiler-cli": "^22.0.6",
         "@effect/language-service": "^0.86.6",
         "@eslint/js": "10.0.1",
-        "@tanstack/angular-query-experimental": "^5.100.9",
+        "@tanstack/angular-query-experimental": "^5.101.2",
         "@types/node": "^26.1.1",
         "@vitest/browser-playwright": "4.1.10",
         "@vitest/coverage-v8": "4.1.10",
@@ -501,11 +501,11 @@
 
     "@standard-schema/spec": ["@standard-schema/spec@1.1.0", "", {}, "sha512-l2aFy5jALhniG5HgqrD6jXLi/rUWrKvqN/qJx6yoJsgKhblVd+iqqU4RCXavm/jPityDo5TCvKMnpjKnOriy0w=="],
 
-    "@tanstack/angular-query-experimental": ["@tanstack/angular-query-experimental@5.100.9", "", { "dependencies": { "@tanstack/query-core": "5.100.9" }, "optionalDependencies": { "@tanstack/query-devtools": "5.100.9" }, "peerDependencies": { "@angular/common": ">=16.0.0", "@angular/core": ">=16.0.0" } }, "sha512-GJPRUyqhIB6TOcibYPILOIR6DZRddpR3fZfV/fdjZ6A5gSKT96JmnkWPnXjkWeK4xPU4XviyNY3lCau24hFqWw=="],
+    "@tanstack/angular-query-experimental": ["@tanstack/angular-query-experimental@5.101.2", "", { "dependencies": { "@tanstack/query-core": "5.101.2" }, "optionalDependencies": { "@tanstack/query-devtools": "5.101.2" }, "peerDependencies": { "@angular/common": ">=16.0.0", "@angular/core": ">=16.0.0" } }, "sha512-hjQVD0nO35ANRj+wrryK7JxryvHaufeOAYjkyGbQT6ox/ugElo/r4jKLJ66XPK/COh1hqlnqHjgDVxkzbw7egg=="],
 
-    "@tanstack/query-core": ["@tanstack/query-core@5.100.9", "", {}, "sha512-SJSFw1S8+kQ0+knv/XGfrbocWoAlT7vDKsSImtLx3ZPQmEcR46hkDjLSvynSy25N8Ms4tIEini1FuBd5k7IscQ=="],
+    "@tanstack/query-core": ["@tanstack/query-core@5.101.2", "", {}, "sha512-hH5MLoJhF7KaIGd7q3xTXGXvslI+GYlM1Z/35aSHHWaCJWB7XvTSHYuV3eM7tw+aE0mT/xMro4M4Q9rCGHT0lw=="],
 
-    "@tanstack/query-devtools": ["@tanstack/query-devtools@5.100.9", "", {}, "sha512-gqiptrTIhbK2PuCaPRHmWXfJG1NGYVFpAr0HqogEqiSBNB5xDz6fmesQt7w4WgMOqOQPnPHJ3ZDMuhDaXvNO8g=="],
+    "@tanstack/query-devtools": ["@tanstack/query-devtools@5.101.2", "", {}, "sha512-o+wHcqgN7Pp0s8v1i0UGq/ZrrEKrxdIiMQmKRdYb2w7NPtylYSJ4+wg/tIn71m9DLstwUwdEGAvROdly6HXP6w=="],
 
     "@tufjs/canonical-json": ["@tufjs/canonical-json@2.0.0", "", {}, "sha512-yVtV8zsdo8qFHe+/3kw81dSLyF7D576A5cCFCi4X7B39tWT7SekaEFUnvnWJHz+9qO7qJTah1JbrDjWKqFtdWA=="],
 

@@ -85,4 +85,18 @@ describe('OSS community and health files', () => {
       expect(readRootFile(`${packageRoot}/CHANGELOG.md`)).toContain(`## ${String(version)} (`);
     }
   });
+
+  it('preserves package manifest formatting when Knope bumps versions', () => {
+    const knopeConfig = readRootFile('knope.toml');
+    const versionPattern = String.raw`(?m)^  "version": "(?<version>\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?)"`;
+
+    for (const packageDefinition of packages) {
+      const manifestPath = `projects/${packageDefinition.directory}/package.json`;
+      const regexVersionedFile = `{ path = "${manifestPath}", regex = '${versionPattern}' }`;
+
+      expect(knopeConfig).toContain(regexVersionedFile);
+      expect(knopeConfig).not.toContain(`versioned_files = ["${manifestPath}"]`);
+      expect(readRootFile(manifestPath).endsWith('\n')).toBe(true);
+    }
+  });
 });

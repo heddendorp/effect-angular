@@ -37,7 +37,8 @@ bun run ng build effect-angular-query
 - Add or update tests when behavior changes.
 - Update docs when API or workflows change.
 - Use clear commit messages.
-- Include a change file in `.changeset/` for user-facing changes.
+- Include a change file under `.changeset/` for user-facing changes. Root-level Markdown files are
+  not release inputs.
 - Use changeset frontmatter with package and change type, for example:
 
   ```md
@@ -57,38 +58,33 @@ bun run ng build effect-angular-query
 
 ## Releases
 
-Release automation is managed by Knope and GitHub Actions.
+Release automation is managed by Knope and GitHub Actions. See [CHANGESETS.md](CHANGESETS.md) for
+the complete change-file format and validation commands.
 
 ### Prerequisites
 
-- Configure a repository secret named `RELEASE_PAT` with:
-  - `contents:write`
-  - `pull-requests:write`
 - Configure npm trusted publishing (OIDC) for:
   - `@heddendorp/effect-platform-angular`
   - `@heddendorp/effect-angular-query`
-    linked to `heddendorp/effect-angular` release workflow.
+    linked to the `heddendorp/effect-angular` release workflow.
 
 ### Standard release flow
 
 1. Merge user-facing PRs with change files under `.changeset/`.
 2. Wait for Knope Bot to create/update the `knope/release` pull request.
-3. Review and merge the generated `knope/release` pull request.
-4. Verify the **Release** workflow succeeds.
-5. Confirm npm publishes for:
+3. Review the generated versions and the package-specific changelogs:
+   - `projects/effect-platform-angular/CHANGELOG.md`
+   - `projects/effect-angular-query/CHANGELOG.md`
+4. Confirm release-readiness checks pass, then merge `knope/release`.
+5. Verify the **Release** workflow succeeds and npm publishes:
    - `@heddendorp/effect-platform-angular`
    - `@heddendorp/effect-angular-query`
-6. Confirm both package versions are visible on npm.
-
-### First release checklist
-
-1. Ensure at least one change file exists in `.changeset/`.
-2. Confirm `knope.toml` and workflow files are present.
-3. Confirm `knope/release` pull request is present.
-4. Merge `knope/release`.
-5. Verify both npm package versions are published.
+6. Confirm both package versions and package-specific GitHub releases are visible.
 
 ## Reporting Bugs
+
+Security vulnerabilities and private conduct concerns must use the private reporting channels in
+[SECURITY.md](SECURITY.md) and [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md), respectively.
 
 Open a GitHub issue with:
 

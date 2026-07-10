@@ -3,13 +3,14 @@
 {
   "compileOnSave": false,
   "compilerOptions": {
+    "plugins": [
+      {
+        "name": "@effect/language-service"
+      }
+    ],
     "paths": {
-      "@heddendorp/effect-angular-query": [
-        "./dist/effect-angular-query"
-      ],
-      "@heddendorp/effect-platform-angular": [
-        "./dist/effect-platform-angular"
-      ]
+      "@heddendorp/effect-angular-query": ["./dist/effect-angular-query"],
+      "@heddendorp/effect-platform-angular": ["./dist/effect-platform-angular"]
     },
     "strict": true,
     "noImplicitOverride": true,

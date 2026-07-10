@@ -5,22 +5,26 @@ import * as Layer from 'effect/Layer';
 import * as Schema from 'effect/Schema';
 import { Rpc, RpcClient, RpcClientError, RpcGroup, RpcSchema } from 'effect/unstable/rpc';
 
-import { asRpcMutation, createEffectRpcAngularClient } from './effect-rpc-query-client';
+import { asRpcMutation, asRpcQuery, createEffectRpcAngularClient } from './effect-rpc-query-client';
 
-const GetUser = Rpc.make('users.get', {
-  payload: Schema.Struct({ id: Schema.String }),
-  success: Schema.Struct({ name: Schema.String }),
-});
+const GetUser = asRpcQuery(
+  Rpc.make('users.get', {
+    payload: Schema.Struct({ id: Schema.String }),
+    success: Schema.Struct({ name: Schema.String }),
+  }),
+);
 
 const UpdateUserName = Rpc.make('users.updateName', {
   payload: Schema.Struct({ id: Schema.String, name: Schema.String }),
   success: Schema.Struct({ ok: Schema.Boolean }),
 });
 
-const UserEvents = Rpc.make('users.events', {
-  payload: Schema.Struct({ id: Schema.String }),
-  success: RpcSchema.Stream(Schema.String, Schema.Never),
-});
+const UserEvents = asRpcQuery(
+  Rpc.make('users.events', {
+    payload: Schema.Struct({ id: Schema.String }),
+    success: RpcSchema.Stream(Schema.String, Schema.Never),
+  }),
+);
 
 class AppRpcs extends RpcGroup.make(GetUser, asRpcMutation(UpdateUserName)) {}
 class StreamRpcs extends RpcGroup.make(UserEvents) {}
@@ -141,7 +145,7 @@ describe('Effect RPC Angular client helpers', () => {
     expect(client.queryFilter(['users'])).toEqual({ queryKey: [['app', 'v1', 'users']] });
   });
 
-  it('throws explicit errors for stream procedures', () => {
+  it('returns stream errors through the Effect and Promise contracts', async () => {
     const rpcClient = createEffectRpcAngularClient({
       group: StreamRpcs,
       rpcLayer: createFailingRpcLayer(createRpcClientError('Not used')),
@@ -151,6 +155,12 @@ describe('Effect RPC Angular client helpers', () => {
 
     const client = TestBed.runInInjectionContext(() => rpcClient.injectClient());
 
-    expect(() => client.users.events.call({ id: '1' })).toThrow(/returns a Stream/);
+    await expect(client.users.events.call({ id: '1' })).rejects.toMatchObject({
+      _tag: 'RpcStreamUnsupportedError',
+      procedureTag: 'users.events',
+    });
+
+    const exit = await Effect.runPromiseExit(client.users.events.callEffect({ id: '1' }));
+    expect(exit._tag).toBe('Failure');
   });
 });

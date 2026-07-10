@@ -15,10 +15,10 @@ bun add @heddendorp/effect-angular-query
 Install required peers in your app:
 
 ```bash
-bun add @tanstack/angular-query-experimental effect
+bun add @tanstack/angular-query-experimental effect@4.0.0-beta.97
 ```
 
-Requires Angular 21.x and Effect v4 beta (`effect >=4.0.0-beta.60 <5`).
+Requires Angular 22.x and Effect v4 beta (`effect 4.0.0-beta.97`).
 
 ## Setup
 
@@ -41,12 +41,18 @@ import * as Layer from 'effect/Layer';
 import * as Schema from 'effect/Schema';
 import { Rpc, RpcClient, RpcGroup } from 'effect/unstable/rpc';
 
-import { asRpcMutation, createEffectRpcAngularClient } from '@heddendorp/effect-angular-query';
+import {
+  asRpcMutation,
+  asRpcQuery,
+  createEffectRpcAngularClient,
+} from '@heddendorp/effect-angular-query';
 
-const GetUser = Rpc.make('users.get', {
-  payload: Schema.Struct({ id: Schema.String }),
-  success: Schema.Struct({ name: Schema.String }),
-});
+const GetUser = asRpcQuery(
+  Rpc.make('users.get', {
+    payload: Schema.Struct({ id: Schema.String }),
+    success: Schema.Struct({ name: Schema.String }),
+  }),
+);
 
 const UpdateUserName = asRpcMutation(
   Rpc.make('users.updateName', {
@@ -71,6 +77,15 @@ export const appConfig: ApplicationConfig = {
   providers: [AppRpc.providers],
 };
 ```
+
+Every procedure must be classified explicitly with `asRpcQuery(...)` or
+`asRpcMutation(...)`. The marker survives procedure and group `middleware(...)` and `prefix(...)`
+composition. Reapplying a marker replaces the previous intent.
+
+The `rpcLayer` is the complete client layer for the group. For a basic contract it only needs to
+provide `RpcClient.Protocol`. Contracts with required client middleware or schema encoding/decoding
+services must merge those services into the same layer. The factory checks this at compile time and
+preserves layer-construction and middleware-client errors in each procedure's error type.
 
 ## Sharing RPC contracts
 
@@ -126,12 +141,15 @@ export class UserDetailsComponent {
 
 Each generated procedure also exposes direct call helpers:
 
-- `call(input): Promise<Success>`
+- `call(input, { signal? }): Promise<Success>`
 - `callEffect(input): Effect<Success, Error, never>`
 
 ```ts
 await AppRpc.injectClient().users.updateName.call({ id: '1', name: 'Ada' });
 ```
+
+The underlying scoped protocol and RPC client are acquired once per Angular environment injector,
+shared by every call, and released when that injector is destroyed.
 
 ## Query key and mutation helpers
 
@@ -142,6 +160,30 @@ const rpc = AppRpc.injectClient();
 const key = rpc.users.get.queryKey({ id: '1' });
 // => [['app', 'users', 'get'], { input: { id: '1' }, type: 'query' }]
 ```
+
+Inputs are converted to deterministic, JSON-safe key values. For custom class instances, pass a
+synchronous encoder to `queryKey` and `queryOptions`:
+
+```ts
+class UserLookup {
+  constructor(readonly id: string) {}
+}
+
+const input = new UserLookup('1');
+const inputEncoder = (value: UserLookup) => ({ id: value.id });
+
+rpc.users.get.queryKey(input, { inputEncoder });
+rpc.users.get.queryOptions(input, { inputEncoder });
+```
+
+`Map` and `Set` inputs preserve insertion order, matching Effect's encoded RPC payloads. If a
+procedure treats their order as insignificant, use `inputEncoder` to return an explicitly sorted
+JSON representation.
+
+TanStack's query `AbortSignal` is forwarded to Effect, so cancelled and pre-aborted queries interrupt
+their RPC work. Per-procedure `select` transformations retain their selected data type. Factory-wide
+defaults intentionally accept only options that do not depend on a particular procedure's data,
+variables, or error type; put `select`, `initialData`, and typed callbacks in procedure overrides.
 
 ### mutationOptions and mutationKey
 
@@ -157,7 +199,10 @@ const mutationKey = rpc.users.updateName.mutationKey();
 Expected errors are typed as the union of:
 
 - your RPC schema error (`Rpc.ErrorExit<Procedure>`)
-- `RpcClientError` transport/protocol errors.
+- required middleware client errors
+- `RpcClientError` transport/protocol errors
+- errors raised while acquiring `rpcLayer`
+- `RpcStreamUnsupportedError` for unsupported stream procedures.
 
 This typed error union is reflected in `queryOptions` and `mutationOptions` callback types.
 
@@ -169,6 +214,9 @@ Use path-level helpers to invalidate or refetch a subtree of queries:
 const rpc = AppRpc.injectClient();
 const filter = rpc.queryFilter(['users'], { exact: false });
 ```
+
+With `exact: true`, the filter matches that exact procedure path for every encoded input; with
+`exact: false` (the default), it matches the full descendant subtree.
 
 ## API reference
 
@@ -195,14 +243,15 @@ This release includes a **major version bump** for `@heddendorp/effect-angular-q
 
 1. Replace old provider setup with `createEffectRpcAngularClient(...)` and register `AppRpc.providers`.
 2. Replace `EffectRpcQueryClient` injection with `AppRpc.injectClient()`.
-3. Mark mutation procedures with `asRpcMutation(...)` so mutation helpers are generated.
+3. Mark every procedure with `asRpcQuery(...)` or `asRpcMutation(...)` so intent is explicit.
 4. Move old `defaults` into `queryDefaults` (and optionally `mutationDefaults`).
 5. Update mutation call sites to use `injectMutation(() => rpc.<path>.mutationOptions())`.
 
 ## Stream procedures
 
-Stream procedures are not supported in this integration surface. Generated helpers throw an explicit
-error for procedures that return `RpcSchema.Stream`.
+Stream procedures are not supported in this integration surface. `callEffect(...)` fails with a
+typed `RpcStreamUnsupportedError`, and `call(...)` returns a rejected Promise. Neither method throws
+synchronously.
 
 ## injectable client
 

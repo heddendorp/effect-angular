@@ -10,11 +10,14 @@ describe('effect-platform-angular public API', () => {
     expect(PublicApi.EFFECT_HTTP_CLIENT_LAYER).toBeInstanceOf(InjectionToken);
     expect(PublicApi.provideEffectHttpClient).toBeDefined();
     expect(PublicApi.provideEffectHttpClientLayer).toBeDefined();
+    expect(PublicApi.DEFAULT_MAX_BUFFERED_REQUEST_BODY_BYTES).toBe(16 * 1024 * 1024);
+    expect(PublicApi.BufferedRequestBodyTooLargeError).toBeDefined();
   });
 
   it('exports the Effect RPC protocol layer provider API', () => {
     expect(PublicApi.EFFECT_RPC_PROTOCOL_HTTP_LAYER).toBeTruthy();
     expect(PublicApi.EFFECT_RPC_PROTOCOL_HTTP_LAYER).toBeInstanceOf(InjectionToken);
     expect(PublicApi.provideEffectRpcProtocolHttpLayer).toBeDefined();
+    expect(PublicApi.UnsupportedRpcSerializationError).toBeDefined();
   });
 });

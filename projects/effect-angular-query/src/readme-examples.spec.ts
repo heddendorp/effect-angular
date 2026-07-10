@@ -17,7 +17,7 @@ const createRpcLayer = () =>
     RpcClient.Protocol,
     RpcClient.Protocol.make(() =>
       Effect.succeed({
-        send: () => Effect.succeed(undefined),
+        send: () => Effect.void,
         supportsAck: false,
         supportsTransferables: false,
       }),
@@ -73,7 +73,6 @@ describe('README examples', () => {
     expect(rpc.pathKey(['users'])).toEqual([['app', 'users']]);
     expect(rpc.queryFilter(['users'], { exact: false })).toEqual({
       queryKey: [['app', 'users']],
-      exact: false,
     });
     expect(rpc.users.updateName.mutationKey()).toEqual([
       ['app', 'users', 'updateName'],

@@ -1,4 +1,3 @@
-
 You are an expert in TypeScript, Angular, and scalable web application development. You write functional, maintainable, performant, and accessible code following Angular and TypeScript best practices.
 
 ## TypeScript Best Practices
@@ -62,3 +61,20 @@ You are an expert in TypeScript, Angular, and scalable web application developme
 - Use valid changeset frontmatter in each file (`effect-platform-angular` and/or `effect-angular-query` with `patch|minor|major`), then a Markdown summary body.
 - Do not rely on conventional commits alone for release notes.
 - Keep changeset summaries concise and focused on user impact.
+
+## Vendored Repositories
+
+This project vendors external repositories under `repos/`.
+
+- Use vendored repositories as read-only reference material when working with related libraries.
+- Prefer examples and patterns from the vendored source code over generated guesses or web search results.
+- Do not edit files under `repos/` unless explicitly asked.
+- Do not import from `repos/`; application code must continue importing from normal package dependencies.
+
+When writing Effect code, read `repos/effect/LLMS.md` first, then inspect `repos/effect/` for idiomatic usage, tests, module structure, and API design. Treat the vendored Effect source as the source of truth for Effect patterns.
+
+When explicitly asked to refresh the vendored Effect v4 source, use:
+
+```bash
+git subtree pull --prefix=repos/effect https://github.com/Effect-TS/effect-smol.git main --squash
+```

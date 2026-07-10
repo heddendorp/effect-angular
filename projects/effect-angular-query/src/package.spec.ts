@@ -29,6 +29,10 @@ const readPeerDependencies = (): PeerDependencies => {
 };
 
 describe('effect-angular-query package metadata', () => {
+  it('declares its MIT license', () => {
+    expect(packageJson.license).toBe('MIT');
+  });
+
   it('declares required peer dependencies for the integration', () => {
     expect(readPeerDependencies()).toMatchObject({
       '@angular/common': expect.any(String),

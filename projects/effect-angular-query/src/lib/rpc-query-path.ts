@@ -10,7 +10,17 @@ export type RpcPathOptions = {
 };
 
 export type RpcQueryFilterOptions = RpcPathOptions & {
+  /** Match only this procedure path while still accepting every input key for it. */
   readonly exact?: boolean;
+};
+
+const hasExactPath = (queryKey: readonly unknown[], path: readonly string[]): boolean => {
+  const candidate = queryKey[0];
+  return (
+    Array.isArray(candidate) &&
+    candidate.length === path.length &&
+    candidate.every((segment, index) => segment === path[index])
+  );
 };
 
 export const createRpcPathKey = (
@@ -25,12 +35,13 @@ export const createRpcQueryFilter = (
   pathSegments: readonly string[],
   options: RpcQueryFilterOptions = {},
 ): QueryFilters<RpcPathKey> => {
+  const queryKey = createRpcPathKey(pathSegments, { keyPrefix: options.keyPrefix });
   const filter: QueryFilters<RpcPathKey> = {
-    queryKey: createRpcPathKey(pathSegments, { keyPrefix: options.keyPrefix }),
+    queryKey,
   };
 
-  if (options.exact !== undefined) {
-    filter.exact = options.exact;
+  if (options.exact) {
+    filter.predicate = (query) => hasExactPath(query.queryKey, queryKey[0]);
   }
 
   return filter;

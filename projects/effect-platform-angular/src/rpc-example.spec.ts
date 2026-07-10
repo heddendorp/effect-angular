@@ -1,4 +1,4 @@
-import { HttpClient, HttpRequest, provideHttpClient } from '@angular/common/http';
+import { HttpClient, HttpRequest, provideHttpClient, withXhr } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { Injectable, inject } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
@@ -59,7 +59,9 @@ class AppRpcs extends RpcGroup.make(Ping) {}
 
 // Map Effect-returning procedures to promise-returning call sites (unary only).
 type PromiseClient<T> = {
-  -readonly [K in keyof T]: T[K] extends (...args: infer Args) => Effect.Effect<infer A, infer _E, infer _R>
+  -readonly [K in keyof T]: T[K] extends (
+    ...args: infer Args
+  ) => Effect.Effect<infer A, infer _E, infer _R>
     ? (...args: Args) => Promise<A>
     : never;
 };
@@ -112,7 +114,7 @@ class AppRpcClient implements AppRpcPromiseClient {
   private readonly adapter = createAngularHttpClient(inject(HttpClient));
   private readonly rpcLayer: Layer.Layer<RpcClient.Protocol, never, never> =
     RpcClient.layerProtocolHttp({ url: '/rpc' }).pipe(
-      Layer.provideMerge([
+      Layer.provide([
         RpcSerialization.layerJson,
         Layer.succeed(EffectHttpClient.HttpClient, this.adapter),
       ]),
@@ -133,7 +135,7 @@ describe('Effect RPC documentation example', () => {
   beforeEach(() => {
     TestBed.resetTestingModule();
     TestBed.configureTestingModule({
-      providers: [provideHttpClient(), provideHttpClientTesting(), AppRpcClient],
+      providers: [provideHttpClient(withXhr()), provideHttpClientTesting(), AppRpcClient],
     });
 
     controller = TestBed.inject(HttpTestingController);
@@ -172,7 +174,9 @@ describe('Effect RPC documentation example', () => {
     expect(requestMessages[0]?.payload).toEqual({ message: 'ping' });
 
     const exitPayload = Schema.encodeSync(Rpc.exitSchema(Ping))(Exit.succeed({ reply: 'pong' }));
-    const responsePayload = [{ _tag: 'Exit', requestId: requestMessages[0]?.id, exit: exitPayload }];
+    const responsePayload = [
+      { _tag: 'Exit', requestId: requestMessages[0]?.id, exit: exitPayload },
+    ];
     // Simulate the RPC server returning a successful Exit; the client should resolve it.
     testRequest.flush(encodeText(JSON.stringify(responsePayload)), {
       status: 200,

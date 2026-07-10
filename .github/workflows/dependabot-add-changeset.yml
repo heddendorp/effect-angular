@@ -9,40 +9,41 @@ on:
       - ready_for_review
     branches:
       - main
+    paths:
+      - 'package.json'
+      - 'bun.lock'
+      - 'projects/**/package.json'
 
 permissions:
-  contents: write
-  pull-requests: read
+  contents: read
+  pull-requests: read # Fetches Dependabot pull-request metadata.
+
+concurrency:
+  group: dependabot-changeset-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
 
 jobs:
   add-changeset:
-    if: github.actor == 'dependabot[bot]'
+    if: >-
+      ${{ github.event.sender.id == 49699333 &&
+          github.event.pull_request.user.id == 49699333 }}
+    name: add-changeset
     runs-on: ubuntu-latest
+    timeout-minutes: 10
 
     steps:
-      - name: Check Dependabot push token
-        env:
-          DEPENDABOT_PUSH_TOKEN: ${{ secrets.DEPENDABOT_PUSH_TOKEN }}
-        run: |
-          if [ -z "${DEPENDABOT_PUSH_TOKEN}" ]; then
-            echo "Missing required Dependabot secret: DEPENDABOT_PUSH_TOKEN"
-            echo "Add it as a Dependabot secret with permissions to read/write repository contents and pull requests."
-            exit 1
-          fi
-
       - name: Check out Dependabot branch
-        uses: actions/checkout@v5
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
-          ref: ${{ github.event.pull_request.head.ref }}
-          token: ${{ secrets.DEPENDABOT_PUSH_TOKEN }}
+          ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Fetch Dependabot metadata
         id: dependabot-metadata
-        uses: dependabot/fetch-metadata@v2
+        uses: dependabot/fetch-metadata@25dd0e34f4fe68f24cc83900b1fe3fe149efef98 # v3.1.0
         with:
           github-token: ${{ github.token }}
-          skip-verification: true
 
       - name: Decide changeset scope
         id: scope
@@ -50,91 +51,18 @@ jobs:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           PACKAGE_ECOSYSTEM: ${{ steps.dependabot-metadata.outputs.package-ecosystem }}
-        run: |
-          set -euo pipefail
-
-          git fetch --no-tags origin "${BASE_SHA}" "${HEAD_SHA}" || true
-
-          mapfile -t changed_files < <(git diff --name-only "${BASE_SHA}" "${HEAD_SHA}")
-
-          if [ "${#changed_files[@]}" -eq 0 ]; then
-            echo "No changed files detected for PR range."
-            echo "changeset_exists=false" >> "${GITHUB_OUTPUT}"
-            echo "actions_only=false" >> "${GITHUB_OUTPUT}"
-            echo "should_create=false" >> "${GITHUB_OUTPUT}"
-            echo "bump_platform=false" >> "${GITHUB_OUTPUT}"
-            echo "bump_query=false" >> "${GITHUB_OUTPUT}"
-            echo "reason=no_changed_files" >> "${GITHUB_OUTPUT}"
-            exit 0
-          fi
-
-          changeset_exists=false
-          actions_only=true
-          platform_manifest_changed=false
-          query_manifest_changed=false
-          root_manifest_changed=false
-
-          for file in "${changed_files[@]}"; do
-            if [[ "${file}" == .changeset/*.md ]]; then
-              changeset_exists=true
-            fi
-
-            if [[ ! "${file}" =~ ^\.github/(workflows|actions)/ ]]; then
-              actions_only=false
-            fi
-
-            if [[ "${file}" == "projects/effect-platform-angular/package.json" ]]; then
-              platform_manifest_changed=true
-            fi
-
-            if [[ "${file}" == "projects/effect-angular-query/package.json" ]]; then
-              query_manifest_changed=true
-            fi
-
-            if [[ "${file}" == "package.json" || "${file}" == "bun.lock" ]]; then
-              root_manifest_changed=true
-            fi
-          done
-
-          bump_platform=false
-          bump_query=false
-          reason=not_applicable
-
-          if [ "${PACKAGE_ECOSYSTEM}" != "bun" ]; then
-            reason=non_bun_pr
-          elif [ "${changeset_exists}" = "true" ]; then
-            reason=changeset_already_present
-          elif [ "${actions_only}" = "true" ]; then
-            reason=actions_only
-          elif [ "${platform_manifest_changed}" = "true" ] || [ "${query_manifest_changed}" = "true" ]; then
-            bump_platform="${platform_manifest_changed}"
-            bump_query="${query_manifest_changed}"
-            reason=package_manifest_changes
-          elif [ "${root_manifest_changed}" = "true" ]; then
-            bump_platform=true
-            bump_query=true
-            reason=root_manifest_changes
-          else
-            reason=no_releasable_manifest_changes
-          fi
-
-          should_create=false
-          if [ "${bump_platform}" = "true" ] || [ "${bump_query}" = "true" ]; then
-            should_create=true
-          fi
-
-          echo "changeset_exists=${changeset_exists}" >> "${GITHUB_OUTPUT}"
-          echo "actions_only=${actions_only}" >> "${GITHUB_OUTPUT}"
-          echo "should_create=${should_create}" >> "${GITHUB_OUTPUT}"
-          echo "bump_platform=${bump_platform}" >> "${GITHUB_OUTPUT}"
-          echo "bump_query=${bump_query}" >> "${GITHUB_OUTPUT}"
-          echo "reason=${reason}" >> "${GITHUB_OUTPUT}"
+          DEPENDENCY_GROUP: ${{ steps.dependabot-metadata.outputs.dependency-group }}
+          DEPENDENCY_TYPE: ${{ steps.dependabot-metadata.outputs.dependency-type }}
+          UPDATED_DEPENDENCIES_JSON: ${{ steps.dependabot-metadata.outputs.updated-dependencies-json }}
+        run: bash .github/scripts/dependabot-changeset.sh scope
 
       - name: Log skip reason
         if: steps.scope.outputs.should_create != 'true'
+        env:
+          REASON: ${{ steps.scope.outputs.reason }}
         run: |
           echo "No changeset created."
-          echo "Reason: ${{ steps.scope.outputs.reason }}"
+          echo "Reason: ${REASON}"
 
       - name: Create changeset file
         if: steps.scope.outputs.should_create == 'true'
@@ -146,48 +74,22 @@ jobs:
           UPDATE_TYPE: ${{ steps.dependabot-metadata.outputs.update-type }}
           BUMP_PLATFORM: ${{ steps.scope.outputs.bump_platform }}
           BUMP_QUERY: ${{ steps.scope.outputs.bump_query }}
-        run: |
-          set -euo pipefail
-
-          FILE=".changeset/dependabot-pr-${PR_NUMBER}.md"
-          mkdir -p .changeset
-
-          dependency_lines=""
-          if [ -n "${UPDATED_DEPENDENCIES_JSON}" ] && [ "${UPDATED_DEPENDENCIES_JSON}" != "[]" ]; then
-            dependency_lines="$(jq -r '.[] | "- \(.dependencyName // .dependency_name // .name // "unknown"): \(.previousVersion // .previous_version // .from // "unknown") -> \(.newVersion // .new_version // .to // "unknown")"' <<< "${UPDATED_DEPENDENCIES_JSON}")"
-          fi
-
-          if [ -z "${dependency_lines}" ]; then
-            dependency_lines="- ${DEPENDENCY_NAMES:-unknown}: version details unavailable"
-          fi
-
-          {
-            echo "---"
-            if [ "${BUMP_PLATFORM}" = "true" ]; then
-              echo "effect-platform-angular: patch"
-            fi
-            if [ "${BUMP_QUERY}" = "true" ]; then
-              echo "effect-angular-query: patch"
-            fi
-            echo "---"
-            echo
-            echo "Automated Dependabot dependency update for PR #${PR_NUMBER}."
-            echo
-            echo "### Updated dependencies"
-            echo "${dependency_lines}"
-            echo
-            echo "Update type: ${UPDATE_TYPE:-unknown}"
-          } > "${FILE}"
-
-          echo "file=${FILE}" >> "${GITHUB_OUTPUT}"
+        run: bash .github/scripts/dependabot-changeset.sh create
 
       - name: Commit and push changeset
         if: steps.scope.outputs.should_create == 'true'
         env:
+          GH_TOKEN: ${{ secrets.DEPENDABOT_PUSH_TOKEN }}
           BRANCH_NAME: ${{ github.event.pull_request.head.ref }}
           FILE: ${{ steps.create-changeset.outputs.file }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
           set -euo pipefail
+
+          if [ -z "${GH_TOKEN}" ]; then
+            echo "Missing required Dependabot secret: DEPENDABOT_PUSH_TOKEN"
+            exit 1
+          fi
 
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
@@ -199,5 +101,6 @@ jobs:
             exit 0
           fi
 
-          git commit -m "chore(changeset): add dependabot changeset for #${{ github.event.pull_request.number }}"
-          git push origin "HEAD:${BRANCH_NAME}"
+          git commit -m "chore(changeset): add dependabot changeset for #${PR_NUMBER}"
+          gh auth setup-git
+          git push "https://github.com/${GITHUB_REPOSITORY}.git" "HEAD:refs/heads/${BRANCH_NAME}"

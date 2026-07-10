@@ -1,9 +1,9 @@
 version: 2
 
+# Keep the default branch implicit because fetch-metadata derives the directory from the branch name.
 updates:
   - package-ecosystem: 'bun'
     directory: '/'
-    target-branch: 'main'
     schedule:
       interval: 'weekly'
       day: 'tuesday'
@@ -51,7 +51,6 @@ updates:
 
   - package-ecosystem: 'github-actions'
     directory: '/'
-    target-branch: 'main'
     schedule:
       interval: 'weekly'
       day: 'tuesday'

@@ -1,106 +1,103 @@
-name: Add Changeset for Dependabot PRs
+name: Classify Dependabot Updates
 
 on:
-  pull_request:
+  pull_request_target:
     types:
       - opened
-      - reopened
       - synchronize
-      - ready_for_review
     branches:
       - main
-    paths:
-      - 'package.json'
-      - 'bun.lock'
-      - 'projects/**/package.json'
 
 permissions:
   contents: read
-  pull-requests: read # Fetches Dependabot pull-request metadata.
+  pull-requests: read
 
 concurrency:
-  group: dependabot-changeset-${{ github.event.pull_request.number }}
-  cancel-in-progress: true
+  group: dependabot-classify-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
 
 jobs:
-  add-changeset:
+  classify:
     if: >-
-      ${{ github.event.sender.id == 49699333 &&
-          github.event.pull_request.user.id == 49699333 }}
-    name: add-changeset
+      ${{ github.repository == 'heddendorp/effect-angular' &&
+          github.event.sender.id == 49699333 &&
+          github.event.pull_request.user.id == 49699333 &&
+          github.event.pull_request.base.ref == 'main' &&
+          github.event.pull_request.head.repo.full_name == github.repository &&
+          startsWith(github.event.pull_request.head.ref, 'dependabot/') &&
+          github.event.pull_request.draft == false }}
+    name: classify-dependabot-update
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
     steps:
-      - name: Check out Dependabot branch
+      - name: Check out trusted policy code
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
-          ref: ${{ github.event.pull_request.head.sha }}
-          fetch-depth: 0
+          ref: ${{ github.event.pull_request.base.sha }}
+          fetch-depth: 1
           persist-credentials: false
 
-      - name: Fetch Dependabot metadata
+      - name: Fetch verified Dependabot metadata
         id: dependabot-metadata
         uses: dependabot/fetch-metadata@25dd0e34f4fe68f24cc83900b1fe3fe149efef98 # v3.1.0
         with:
           github-token: ${{ github.token }}
 
-      - name: Decide changeset scope
-        id: scope
+      - name: Capture pull request snapshot
         env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-          PACKAGE_ECOSYSTEM: ${{ steps.dependabot-metadata.outputs.package-ecosystem }}
-          DEPENDENCY_GROUP: ${{ steps.dependabot-metadata.outputs.dependency-group }}
-          DEPENDENCY_TYPE: ${{ steps.dependabot-metadata.outputs.dependency-type }}
-          UPDATED_DEPENDENCIES_JSON: ${{ steps.dependabot-metadata.outputs.updated-dependencies-json }}
-        run: bash .github/scripts/dependabot-changeset.sh scope
-
-      - name: Log skip reason
-        if: steps.scope.outputs.should_create != 'true'
-        env:
-          REASON: ${{ steps.scope.outputs.reason }}
-        run: |
-          echo "No changeset created."
-          echo "Reason: ${REASON}"
-
-      - name: Create changeset file
-        if: steps.scope.outputs.should_create == 'true'
-        id: create-changeset
-        env:
+          GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
-          DEPENDENCY_NAMES: ${{ steps.dependabot-metadata.outputs.dependency-names }}
-          UPDATED_DEPENDENCIES_JSON: ${{ steps.dependabot-metadata.outputs.updated-dependencies-json }}
-          UPDATE_TYPE: ${{ steps.dependabot-metadata.outputs.update-type }}
-          BUMP_PLATFORM: ${{ steps.scope.outputs.bump_platform }}
-          BUMP_QUERY: ${{ steps.scope.outputs.bump_query }}
-        run: bash .github/scripts/dependabot-changeset.sh create
-
-      - name: Commit and push changeset
-        if: steps.scope.outputs.should_create == 'true'
-        env:
-          GH_TOKEN: ${{ secrets.DEPENDABOT_PUSH_TOKEN }}
-          BRANCH_NAME: ${{ github.event.pull_request.head.ref }}
-          FILE: ${{ steps.create-changeset.outputs.file }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
+          EXPECTED_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
           set -euo pipefail
 
-          if [ -z "${GH_TOKEN}" ]; then
-            echo "Missing required Dependabot secret: DEPENDABOT_PUSH_TOKEN"
+          current_head="$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}" --jq '.head.sha')"
+          if [[ "${current_head}" != "${EXPECTED_HEAD_SHA}" ]]; then
+            echo "Pull request head changed during classification."
             exit 1
           fi
 
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          gh api --paginate "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}/files?per_page=100" |
+            jq -s 'add' > "${RUNNER_TEMP}/dependabot-files.json"
+          gh api --paginate "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}/commits?per_page=100" |
+            jq -s 'add' > "${RUNNER_TEMP}/dependabot-commits.json"
 
-          git add "${FILE}"
+      - name: Store metadata as data
+        env:
+          UPDATED_DEPENDENCIES_JSON: ${{ steps.dependabot-metadata.outputs.updated-dependencies-json }}
+        run: printf '%s\n' "${UPDATED_DEPENDENCIES_JSON}" > "${RUNNER_TEMP}/dependabot-metadata.json"
 
-          if git diff --cached --quiet; then
-            echo "No changes to commit."
-            exit 0
-          fi
+      - name: Classify update and prepare policy artifact
+        id: policy
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPOSITORY: ${{ github.repository }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PACKAGE_ECOSYSTEM: ${{ steps.dependabot-metadata.outputs.package-ecosystem }}
+          UPDATE_TYPE: ${{ steps.dependabot-metadata.outputs.update-type }}
+          DEPENDENCY_NAMES: ${{ steps.dependabot-metadata.outputs.dependency-names }}
+          DEPENDENCY_GROUP: ${{ steps.dependabot-metadata.outputs.dependency-group }}
+          DEPENDENCY_TYPE: ${{ steps.dependabot-metadata.outputs.dependency-type }}
+          UPDATED_DEPENDENCIES_JSON_FILE: ${{ runner.temp }}/dependabot-metadata.json
+          CHANGED_FILES_JSON_FILE: ${{ runner.temp }}/dependabot-files.json
+          COMMIT_ATTESTATIONS_JSON_FILE: ${{ runner.temp }}/dependabot-commits.json
+          ARTIFACT_DIR: ${{ runner.temp }}/dependabot-policy
+        run: bash .github/scripts/dependabot-changeset.sh classify
 
-          git commit -m "chore(changeset): add dependabot changeset for #${PR_NUMBER}"
-          gh auth setup-git
-          git push "https://github.com/${GITHUB_REPOSITORY}.git" "HEAD:refs/heads/${BRANCH_NAME}"
+      - name: Explain manual handling
+        if: steps.policy.outputs.automerge_eligible != 'true'
+        env:
+          REASON: ${{ steps.policy.outputs.reason }}
+        run: echo "Dependabot update requires manual handling. Reason=${REASON}"
+
+      - name: Upload eligible policy artifact
+        if: steps.policy.outputs.automerge_eligible == 'true'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: dependabot-policy-${{ github.event.pull_request.number }}-${{ github.event.pull_request.head.sha }}
+          path: ${{ runner.temp }}/dependabot-policy
+          if-no-files-found: error
+          retention-days: 1

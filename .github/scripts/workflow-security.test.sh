@@ -79,6 +79,7 @@ require_text "${dependabot}" 'cancel-in-progress: false'
 if grep -q 'target-branch:' "${dependabot_config}"; then
   fail 'Dependabot must keep the default target branch implicit for correct metadata directories'
 fi
+require_text "${dependabot_config}" "- 'repos/effect/**'"
 
 push_step_line="$(grep -n -- '- name: Commit generated changeset' "${dependabot_automerge}" | cut -d: -f1 || true)"
 if [[ -z "${push_step_line}" ]]; then

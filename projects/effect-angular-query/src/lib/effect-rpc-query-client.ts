@@ -66,7 +66,10 @@ type MarkedRpcPayload<
   Kind extends RpcProcedureKind,
 > = OriginalRpcPayload<Payload> & RpcProcedurePayloadMarker<Kind, OriginalRpcPayload<Payload>>;
 
-type MarkedRpcProcedure<
+type NormalizedRpcPayload<Payload extends Schema.Top | Schema.Struct.Fields> =
+  Payload extends Schema.Struct.Fields ? Schema.Struct<Payload> : Payload;
+
+interface MarkedRpcProcedure<
   Tag extends string,
   Payload extends Schema.Top,
   Success extends Schema.Top,
@@ -74,7 +77,57 @@ type MarkedRpcProcedure<
   Middleware extends RpcMiddleware.AnyService,
   Requires,
   Kind extends RpcProcedureKind,
-> = Rpc.Rpc<Tag, MarkedRpcPayload<Payload, Kind>, Success, RpcError, Middleware, Requires>;
+> extends Rpc.Rpc<Tag, MarkedRpcPayload<Payload, Kind>, Success, RpcError, Middleware, Requires> {
+  readonly setSuccess: <NextSuccess extends Schema.Top>(
+    schema: NextSuccess,
+  ) => MarkedRpcProcedure<Tag, Payload, NextSuccess, RpcError, Middleware, Requires, Kind>;
+  readonly setError: <NextError extends Schema.Top>(
+    schema: NextError,
+  ) => MarkedRpcProcedure<Tag, Payload, Success, NextError, Middleware, Requires, Kind>;
+  setPayload<NextPayload extends Schema.Top | Schema.Struct.Fields>(
+    schema: NextPayload,
+  ): MarkedRpcProcedure<
+    Tag,
+    NormalizedRpcPayload<NextPayload>,
+    Success,
+    RpcError,
+    Middleware,
+    Requires,
+    Kind
+  >;
+  setPayload<NextPayload extends Schema.Top | Schema.Struct.Fields>(
+    schema: NextPayload,
+  ): Rpc.Rpc<Tag, NormalizedRpcPayload<NextPayload>, Success, RpcError, Middleware, Requires>;
+  readonly middleware: <NextMiddleware extends RpcMiddleware.AnyService>(
+    middleware: NextMiddleware,
+  ) => MarkedRpcProcedure<
+    Tag,
+    Payload,
+    Success,
+    RpcError,
+    Middleware | NextMiddleware,
+    RpcMiddleware.ApplyServices<NextMiddleware['Identifier'], Requires>,
+    Kind
+  >;
+  readonly prefix: <const Prefix extends string>(
+    prefix: Prefix,
+  ) => MarkedRpcProcedure<
+    `${Prefix}${Tag}`,
+    Payload,
+    Success,
+    RpcError,
+    Middleware,
+    Requires,
+    Kind
+  >;
+  readonly annotate: <Identifier, Service>(
+    tag: Context.Key<Identifier, Service>,
+    value: NoInfer<Service>,
+  ) => MarkedRpcProcedure<Tag, Payload, Success, RpcError, Middleware, Requires, Kind>;
+  readonly annotateMerge: <Identifier>(
+    annotations: Context.Context<Identifier>,
+  ) => MarkedRpcProcedure<Tag, Payload, Success, RpcError, Middleware, Requires, Kind>;
+}
 
 type MarkRpcProcedure<Current extends Rpc.Any, Kind extends RpcProcedureKind> =
   Current extends Rpc.Rpc<
@@ -729,11 +782,8 @@ const createEffectRpcAngularClientInstance = <Rpcs extends RpcProcedureWithInten
       >;
     });
 
-    return Effect.callback<Rpc.SuccessExit<Current>, RpcProcedureError<Current, LayerError>>(
-      (resume) => {
-        const interrupt = runtime.runCallback(program, { onExit: resume });
-        return Effect.sync(() => interrupt());
-      },
+    return Effect.flatMap(runtime.contextEffect, (context) =>
+      Effect.provideContext(program, context),
     );
   };
 

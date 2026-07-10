@@ -1,8 +1,9 @@
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
 import { readFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+
+import { spawnNpmSync } from './npm-command.mjs';
 
 const workspaceRoot = join(dirname(fileURLToPath(import.meta.url)), '..');
 const expectedLicense = await readFile(join(workspaceRoot, 'LICENSE'), 'utf8');
@@ -16,8 +17,6 @@ const packages = [
     name: '@heddendorp/effect-angular-query',
   },
 ];
-
-const npmExecutable = process.platform === 'win32' ? 'npm.cmd' : 'npm';
 
 for (const packageDefinition of packages) {
   const packageDirectory = join(workspaceRoot, 'dist', packageDefinition.directory);
@@ -36,7 +35,7 @@ for (const packageDefinition of packages) {
     `${packageDefinition.name} must contain the repository MIT license`,
   );
 
-  const result = spawnSync(npmExecutable, ['pack', '--dry-run', '--json'], {
+  const result = spawnNpmSync(['pack', '--dry-run', '--json'], {
     cwd: packageDirectory,
     encoding: 'utf8',
   });

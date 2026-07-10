@@ -4,7 +4,7 @@ effect-platform-angular: major
 
 ### Changed
 
-- Preserve binary stream request bodies, cap buffered uploads at a configurable 16 MiB by default, support an explicit SSR base URL, and fail bodyless or prematurely completed Angular responses without hanging.
+- Preserve binary stream request bodies, cap buffered uploads at a configurable 16 MiB by default, report upload-limit failures as non-retryable encoding errors, support an explicit SSR base URL with typed invalid-URL failures, and fail bodyless or prematurely completed Angular responses without hanging.
 - Reject framed RPC serializers with `UnsupportedRpcSerializationError` because Angular `HttpClient` cannot progressively deliver those responses.
 
 ### Migration

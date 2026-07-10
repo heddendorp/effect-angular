@@ -54,7 +54,7 @@ describe('createRpcQueryKey', () => {
     expect(hashKey(first)).not.toBe(hashKey(second));
   });
 
-  it('sorts Map entries canonically while distinguishing different maps', () => {
+  it('preserves Map insertion order because RPC schemas encode it', () => {
     const tenantA = createRpcQueryKey(['rpc', 'tenant'], {
       input: new Map([
         ['region', 'eu'],
@@ -74,8 +74,25 @@ describe('createRpcQueryKey', () => {
       ]),
     });
 
-    expect(hashKey(tenantAReordered)).toBe(hashKey(tenantA));
+    expect(hashKey(tenantAReordered)).not.toBe(hashKey(tenantA));
     expect(hashKey(tenantB)).not.toBe(hashKey(tenantA));
+  });
+
+  it('allows order-insensitive Map keys through an explicit inputEncoder', () => {
+    const first = new Map([
+      ['region', 'eu'],
+      ['tenant', 'a'],
+    ]);
+    const reordered = new Map([
+      ['tenant', 'a'],
+      ['region', 'eu'],
+    ]);
+    const inputEncoder = (input: Map<string, string>) =>
+      Array.from(input.entries()).sort(([left], [right]) => left.localeCompare(right));
+
+    expect(hashKey(createRpcQueryKey(['rpc'], { input: first, inputEncoder }))).toBe(
+      hashKey(createRpcQueryKey(['rpc'], { input: reordered, inputEncoder })),
+    );
   });
 
   it('keeps special runtime values distinct from JSON lookalikes', () => {
@@ -186,12 +203,10 @@ describe('createRpcQueryKey', () => {
     );
   });
 
-  it('canonically sorts equal Set values', () => {
-    const first = { id: '1' };
-    const second = { id: '1' };
+  it('preserves Set insertion order because RPC schemas encode it', () => {
+    const first = createRpcQueryKey(['rpc'], { input: new Set(['a', 'b']) });
+    const reordered = createRpcQueryKey(['rpc'], { input: new Set(['b', 'a']) });
 
-    expect(() =>
-      hashKey(createRpcQueryKey(['rpc'], { input: new Set([first, second]) })),
-    ).not.toThrow();
+    expect(hashKey(reordered)).not.toBe(hashKey(first));
   });
 });

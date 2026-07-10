@@ -58,6 +58,29 @@ const ReclassifiedQuery = asRpcQuery(
 class ComposedRpcsBase extends RpcGroup.make(ComposedMutation, ReclassifiedQuery) {}
 class ComposedRpcs extends ComposedRpcsBase.middleware(AuditMiddleware).prefix('v1.') {}
 
+const FluentAnnotation = Context.Service<string>('effect-angular-query/test/FluentAnnotation');
+
+const FluentSetPayloadQuery = asRpcQuery(
+  Rpc.make('fluent.lookup', {
+    payload: Schema.Struct({ legacyId: Schema.String }),
+  }),
+)
+  .setSuccess(Schema.Struct({ ok: Schema.Boolean }))
+  .setError(Schema.String)
+  .middleware(AuditMiddleware)
+  .prefix('v2.')
+  .annotate(FluentAnnotation, 'single')
+  .annotateMerge(Context.make(FluentAnnotation, 'merged'))
+  .setPayload({ id: Schema.String });
+
+const FluentSetPayloadMutation = asRpcMutation(
+  Rpc.make('fluent.save', {
+    success: Schema.Struct({ ok: Schema.Boolean }),
+  }),
+).setPayload(Schema.Struct({ id: Schema.String }));
+
+class FluentSetPayloadRpcs extends RpcGroup.make(FluentSetPayloadQuery, FluentSetPayloadMutation) {}
+
 const LifecyclePing = asRpcQuery(
   Rpc.make('lifecycle.ping', {
     payload: Schema.Struct({ id: Schema.String }),
@@ -153,6 +176,24 @@ describe('Effect RPC Angular client regressions', () => {
     expect(client.v1.admin.save.queryOptions).toBeUndefined();
     // @ts-expect-error re-marking replaces the old mutation classification
     expect(client.v1.reclassified.mutationOptions).toBeUndefined();
+  });
+
+  it('preserves query and mutation intent when fluent chains replace the payload', () => {
+    const factory = createEffectRpcAngularClient({
+      group: FluentSetPayloadRpcs,
+      rpcLayer: createProtocolLayer(),
+    });
+    TestBed.configureTestingModule({ providers: [factory.providers] });
+    const client = TestBed.runInInjectionContext(() => factory.injectClient());
+
+    expect(client.v2.fluent.lookup.queryKey({ id: 'query-1' })).toEqual([
+      ['v2', 'fluent', 'lookup'],
+      { input: { id: 'query-1' }, type: 'query' },
+    ]);
+    expect(typeof client.v2.fluent.lookup.queryOptions).toBe('function');
+    expect('mutationOptions' in client.v2.fluent.lookup).toBe(false);
+    expect(typeof client.fluent.save.mutationOptions).toBe('function');
+    expect('queryOptions' in client.fluent.save).toBe(false);
   });
 
   it('requires explicit procedure intent at compile time and validates it at runtime', () => {
@@ -280,6 +321,27 @@ describe('Effect RPC Angular client regressions', () => {
 
     TestBed.resetTestingModule();
     await vi.waitFor(() => expect(releases).toBe(1));
+  });
+
+  it('preserves caller-local RPC headers when using the retained client', async () => {
+    let observedHeader: string | undefined;
+    const error = createRpcClientError('Expected request failure');
+    const layer = createProtocolLayer((_clientId, request) => {
+      if (request._tag === 'Request') {
+        observedHeader = request.headers.find(([name]) => name === 'x-review')?.[1];
+      }
+      return Effect.fail(error);
+    });
+    const factory = createEffectRpcAngularClient({ group: LifecycleRpcs, rpcLayer: layer });
+    TestBed.configureTestingModule({ providers: [factory.providers] });
+    const client = TestBed.runInInjectionContext(() => factory.injectClient());
+
+    const call = client.lifecycle.ping
+      .callEffect({ id: '1' })
+      .pipe(RpcClient.withHeaders({ 'x-review': 'present' }));
+
+    await expect(Effect.runPromise(call)).rejects.toBe(error);
+    expect(observedHeader).toBe('present');
   });
 
   it('forwards in-flight and pre-aborted TanStack signals to the RPC fiber', async () => {

@@ -12,7 +12,13 @@ import * as Exit from 'effect/Exit';
 import * as Option from 'effect/Option';
 import * as Stream from 'effect/Stream';
 import * as Effect from 'effect/Effect';
-import { Headers, HttpBody, HttpClientError, HttpClientRequest } from 'effect/unstable/http';
+import {
+  Headers,
+  HttpBody,
+  HttpClient as EffectHttpClient,
+  HttpClientError,
+  HttpClientRequest,
+} from 'effect/unstable/http';
 import { EMPTY } from 'rxjs';
 
 import { EFFECT_HTTP_CLIENT, provideEffectHttpClient } from './effect-http-client';
@@ -289,6 +295,32 @@ describe('Angular HttpClient adapter request mapping', () => {
     await response;
   });
 
+  it('skips zero-length stream chunks without copying or retaining them', async () => {
+    const emptyChunk = new Uint8Array(0);
+    Object.defineProperty(emptyChunk, 'slice', {
+      value: () => {
+        throw new Error('zero-length chunks must not be copied');
+      },
+    });
+    const streamBody = HttpBody.stream(
+      Stream.fromIterable([emptyChunk, emptyChunk, new Uint8Array([1, 2, 3])]),
+      'application/octet-stream',
+    );
+    const request = HttpClientRequest.post('https://example.test/stream-empty-chunks', {
+      body: streamBody,
+    });
+
+    const response = Effect.runPromise(adapter.execute(request));
+    const testRequest = await waitForRequest(
+      (req) => req.url === 'https://example.test/stream-empty-chunks',
+    );
+
+    expect(Array.from(new Uint8Array(testRequest.request.body as ArrayBuffer))).toEqual([1, 2, 3]);
+
+    testRequest.flush(new ArrayBuffer(0));
+    await response;
+  });
+
   it('buffers a stream body at the configured byte limit', async () => {
     adapter = createAngularHttpClient(TestBed.inject(HttpClient), {
       maxBufferedRequestBodyBytes: 3,
@@ -333,7 +365,44 @@ describe('Angular HttpClient adapter request mapping', () => {
       expect(Option.isSome(failure)).toBe(true);
       if (Option.isSome(failure)) {
         expect(failure.value).toBeInstanceOf(HttpClientError.HttpClientError);
-        expect(failure.value.reason).toBeInstanceOf(HttpClientError.TransportError);
+        expect(failure.value.reason).toBeInstanceOf(HttpClientError.EncodeError);
+        expect(failure.value.reason.cause).toBeInstanceOf(BufferedRequestBodyTooLargeError);
+      }
+    }
+  });
+
+  it('does not retry a stream body that exceeds the configured byte limit', async () => {
+    adapter = createAngularHttpClient(TestBed.inject(HttpClient), {
+      maxBufferedRequestBodyBytes: 2,
+    });
+    let streamRuns = 0;
+    const streamBody = HttpBody.stream(
+      Stream.fromEffect(
+        Effect.sync(() => {
+          streamRuns += 1;
+          return new Uint8Array([1, 2, 3]);
+        }),
+      ),
+      'application/octet-stream',
+    );
+    const request = HttpClientRequest.post('https://example.test/stream-too-large-retry', {
+      body: streamBody,
+    });
+    const retryingAdapter = adapter.pipe(
+      EffectHttpClient.retryTransient({ retryOn: 'errors-only', times: 2 }),
+    );
+
+    const exit = await Effect.runPromiseExit(retryingAdapter.execute(request));
+
+    controller.expectNone('https://example.test/stream-too-large-retry');
+    expect(streamRuns).toBe(1);
+    expect(Exit.isFailure(exit)).toBe(true);
+    if (Exit.isFailure(exit)) {
+      const failure = Exit.findErrorOption(exit);
+      expect(Option.isSome(failure)).toBe(true);
+      if (Option.isSome(failure)) {
+        expect(failure.value).toBeInstanceOf(HttpClientError.HttpClientError);
+        expect(failure.value.reason).toBeInstanceOf(HttpClientError.EncodeError);
         expect(failure.value.reason.cause).toBeInstanceOf(BufferedRequestBodyTooLargeError);
       }
     }
@@ -399,6 +468,26 @@ describe('Angular HttpClient adapter request mapping', () => {
 
     testRequest.flush(new ArrayBuffer(0));
     await response;
+  });
+
+  it('maps malformed request URLs to InvalidUrlError when a base URL is configured', async () => {
+    adapter = createAngularHttpClient(TestBed.inject(HttpClient), {
+      baseUrl: 'https://ssr.example.test/app/',
+    });
+    const request = HttpClientRequest.get('http://[');
+
+    const exit = await Effect.runPromiseExit(adapter.execute(request));
+
+    expect(controller.match(() => true)).toHaveLength(0);
+    expect(Exit.isFailure(exit)).toBe(true);
+    if (Exit.isFailure(exit)) {
+      const failure = Exit.findErrorOption(exit);
+      expect(Option.isSome(failure)).toBe(true);
+      if (Option.isSome(failure)) {
+        expect(failure.value).toBeInstanceOf(HttpClientError.HttpClientError);
+        expect(failure.value.reason).toBeInstanceOf(HttpClientError.InvalidUrlError);
+      }
+    }
   });
 
   it('surfaces transport errors as request failures', async () => {

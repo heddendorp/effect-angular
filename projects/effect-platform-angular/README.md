@@ -95,7 +95,7 @@ The factory runs when Angular creates the adapter, inside Angular's injection co
 Angular HttpClient does not expose progressive upload or download bodies through this adapter:
 
 - Effect stream request bodies are fully buffered before Angular starts the request. Buffering is linear and limited to 16 MiB by default. Set `maxBufferedRequestBodyBytes` to another finite, non-negative safe integer when registering the adapter.
-- Exceeding the limit fails before a request is sent with `HttpClientError.HttpClientError`. Its reason is `TransportError`, and its cause is `BufferedRequestBodyTooLargeError` with `maxBytes` and `receivedBytes` fields.
+- Exceeding the limit fails before a request is sent with `HttpClientError.HttpClientError`. Its reason is the non-retryable `EncodeError`, and its cause is `BufferedRequestBodyTooLargeError` with `maxBytes` and `receivedBytes` fields.
 - `HttpClientResponse.stream` is available for API compatibility, but its bytes arrive as a single buffered chunk only after Angular receives the complete response. It is not a progressive download stream.
 - Framed RPC serializers and streaming RPC procedures are not supported over this Angular HTTP transport. Supplying a serializer whose `includesFraming` is `true` fails layer construction with `UnsupportedRpcSerializationError`. Use a socket transport or another progressively streaming Effect HttpClient for those procedures.
 

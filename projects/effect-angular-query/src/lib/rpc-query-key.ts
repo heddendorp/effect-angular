@@ -50,12 +50,6 @@ const formatPath = (path: readonly (string | number)[]): string =>
         '$',
       );
 
-const compareCanonicalJson = (left: Json, right: Json): number => {
-  const leftJson = JSON.stringify(left);
-  const rightJson = JSON.stringify(right);
-  return leftJson < rightJson ? -1 : leftJson > rightJson ? 1 : 0;
-};
-
 const isPlainObject = (value: object): boolean => {
   const prototype = Object.getPrototypeOf(value);
   return prototype === Object.prototype || prototype === null;
@@ -141,7 +135,7 @@ const canonicalize = (
           canonicalize(value, ancestors, [...path, `map-value-${index}`]),
         ];
         return canonicalEntry;
-      }).sort(compareCanonicalJson);
+      });
 
       return tagged('map', entries);
     }
@@ -149,7 +143,7 @@ const canonicalize = (
     if (input instanceof Set) {
       const values = Array.from(input.values(), (value, index) =>
         canonicalize(value, ancestors, [...path, `set-value-${index}`]),
-      ).sort(compareCanonicalJson);
+      );
 
       return tagged('set', values);
     }

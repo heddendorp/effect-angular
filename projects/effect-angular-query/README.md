@@ -176,6 +176,10 @@ rpc.users.get.queryKey(input, { inputEncoder });
 rpc.users.get.queryOptions(input, { inputEncoder });
 ```
 
+`Map` and `Set` inputs preserve insertion order, matching Effect's encoded RPC payloads. If a
+procedure treats their order as insignificant, use `inputEncoder` to return an explicitly sorted
+JSON representation.
+
 TanStack's query `AbortSignal` is forwarded to Effect, so cancelled and pre-aborted queries interrupt
 their RPC work. Per-procedure `select` transformations retain their selected data type. Factory-wide
 defaults intentionally accept only options that do not depend on a particular procedure's data,

@@ -39,14 +39,17 @@ export class BufferedRequestBodyTooLargeError extends Error {
   }
 }
 
-type BufferedChunk = {
-  readonly bytes: Uint8Array;
-  readonly previous: BufferedChunk | undefined;
-};
+class BufferedRequestBodyBufferingError extends Error {
+  override readonly name = 'BufferedRequestBodyBufferingError';
+
+  constructor(override readonly cause: unknown) {
+    super('Failed to buffer the stream request body', { cause });
+  }
+}
 
 type BufferedStreamBody = {
+  readonly bytes: Uint8Array;
   readonly byteLength: number;
-  readonly lastChunk: BufferedChunk | undefined;
 };
 
 const transportError = (
@@ -62,18 +65,64 @@ const transportError = (
     }),
   });
 
+const encodeError = (
+  request: HttpClientRequest.HttpClientRequest,
+  cause: unknown,
+  description?: string,
+): HttpClientError.HttpClientError =>
+  new HttpClientError.HttpClientError({
+    reason: new HttpClientError.EncodeError({
+      request,
+      cause,
+      description,
+    }),
+  });
+
 const bufferStreamBody = (body: BufferedStreamBody): ArrayBuffer => {
   const bytes = new Uint8Array(body.byteLength);
-  let chunk = body.lastChunk;
-  let offset = body.byteLength;
+  bytes.set(body.bytes.subarray(0, body.byteLength));
+  return bytes.buffer;
+};
 
-  while (chunk !== undefined) {
-    offset -= chunk.bytes.byteLength;
-    bytes.set(chunk.bytes, offset);
-    chunk = chunk.previous;
+const appendStreamChunk = (
+  buffered: BufferedStreamBody,
+  chunk: Uint8Array,
+  maxBufferedRequestBodyBytes: number,
+): Effect.Effect<
+  BufferedStreamBody,
+  BufferedRequestBodyTooLargeError | BufferedRequestBodyBufferingError
+> => {
+  if (chunk.byteLength === 0) {
+    return Effect.succeed(buffered);
   }
 
-  return bytes.buffer;
+  const byteLength = buffered.byteLength + chunk.byteLength;
+  if (!Number.isSafeInteger(byteLength) || byteLength > maxBufferedRequestBodyBytes) {
+    return Effect.fail(
+      new BufferedRequestBodyTooLargeError(maxBufferedRequestBodyBytes, byteLength),
+    );
+  }
+
+  return Effect.try({
+    try: () => {
+      let bytes = buffered.bytes;
+      if (byteLength > bytes.byteLength) {
+        const doubledCapacity =
+          bytes.byteLength === 0
+            ? 1
+            : bytes.byteLength > Math.floor(maxBufferedRequestBodyBytes / 2)
+              ? maxBufferedRequestBodyBytes
+              : bytes.byteLength * 2;
+        const grown = new Uint8Array(Math.max(byteLength, doubledCapacity));
+        grown.set(bytes.subarray(0, buffered.byteLength));
+        bytes = grown;
+      }
+
+      bytes.set(chunk, buffered.byteLength);
+      return { bytes, byteLength };
+    },
+    catch: (cause) => new BufferedRequestBodyBufferingError(cause),
+  });
 };
 
 // Angular HttpClient does not progressively upload stream bodies, so collect them once with a
@@ -88,43 +137,25 @@ const collectStreamBody = (
       maxBufferedRequestBodyBytes,
       body.contentLength,
     );
-    return Effect.fail(transportError(request, cause.message, cause));
+    return Effect.fail(encodeError(request, cause, cause.message));
   }
 
   return Effect.matchEffect(
     Effect.scoped(
       Stream.runFoldEffect(
         body.stream,
-        (): BufferedStreamBody => ({ byteLength: 0, lastChunk: undefined }),
-        (buffered, chunk) => {
-          const byteLength = buffered.byteLength + chunk.byteLength;
-          if (!Number.isSafeInteger(byteLength) || byteLength > maxBufferedRequestBodyBytes) {
-            return Effect.fail(
-              new BufferedRequestBodyTooLargeError(maxBufferedRequestBodyBytes, byteLength),
-            );
-          }
-
-          return Effect.succeed({
-            byteLength,
-            lastChunk: {
-              bytes: chunk.slice(),
-              previous: buffered.lastChunk,
-            },
-          });
-        },
+        (): BufferedStreamBody => ({ bytes: new Uint8Array(0), byteLength: 0 }),
+        (buffered, chunk) => appendStreamChunk(buffered, chunk, maxBufferedRequestBodyBytes),
       ),
     ),
     {
       onFailure: (cause) =>
         Effect.fail(
-          cause instanceof BufferedRequestBodyTooLargeError
-            ? transportError(request, cause.message, cause)
-            : new HttpClientError.HttpClientError({
-                reason: new HttpClientError.EncodeError({
-                  request,
-                  cause,
-                }),
-              }),
+          encodeError(
+            request,
+            cause,
+            cause instanceof BufferedRequestBodyTooLargeError ? cause.message : undefined,
+          ),
         ),
       onSuccess: (buffered) => Effect.succeed(bufferStreamBody(buffered)),
     },
@@ -215,8 +246,17 @@ const normalizeBaseUrl = (value: EffectHttpClientOptions['baseUrl']): string | u
 const resolveRequestBaseUrl = (
   request: HttpClientRequest.HttpClientRequest,
   baseUrl: string,
-): HttpClientRequest.HttpClientRequest =>
-  HttpClientRequest.setUrl(request, new URL(request.url, baseUrl).toString());
+): Effect.Effect<HttpClientRequest.HttpClientRequest, HttpClientError.HttpClientError> =>
+  Effect.try({
+    try: () => HttpClientRequest.setUrl(request, new URL(request.url, baseUrl).toString()),
+    catch: (cause) =>
+      new HttpClientError.HttpClientError({
+        reason: new HttpClientError.InvalidUrlError({
+          request,
+          cause,
+        }),
+      }),
+  });
 
 export const createAngularHttpClient = (
   httpClient: AngularHttpClient,
@@ -310,7 +350,9 @@ export const createAngularHttpClient = (
   // but before Effect validates the URL in the underlying client.
   return EffectHttpClient.makeWith(
     (request) =>
-      client.postprocess(Effect.map(request, (request) => resolveRequestBaseUrl(request, baseUrl))),
+      client.postprocess(
+        Effect.flatMap(request, (request) => resolveRequestBaseUrl(request, baseUrl)),
+      ),
     client.preprocess,
   );
 };

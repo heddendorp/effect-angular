@@ -4,10 +4,11 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { spawnNpmSync } from './npm-command.mjs';
+
 const workspaceRoot = resolve(fileURLToPath(new URL('..', import.meta.url)));
 const temporaryDirectory = mkdtempSync(join(tmpdir(), 'effect-angular-consumer-'));
 const tarballDirectory = join(temporaryDirectory, 'tarballs');
-const npmCommand = process.platform === 'win32' ? 'npm.cmd' : 'npm';
 
 const readJson = (path) => JSON.parse(readFileSync(path, 'utf8'));
 
@@ -29,8 +30,26 @@ const run = (command, args, options = {}) =>
     ...options,
   });
 
+const runNpm = (args, options = {}) => {
+  const result = spawnNpmSync(args, {
+    cwd: workspaceRoot,
+    encoding: 'utf8',
+    stdio: options.capture ? ['ignore', 'pipe', 'inherit'] : 'inherit',
+    ...options,
+  });
+
+  if (result.error) {
+    throw result.error;
+  }
+  if (result.status !== 0) {
+    throw new Error(`npm ${args[0] ?? ''} failed with exit code ${result.status ?? 'unknown'}`);
+  }
+
+  return result.stdout ?? '';
+};
+
 const pack = (distributionDirectory) => {
-  const output = run(npmCommand, ['pack', '--json', '--pack-destination', tarballDirectory], {
+  const output = runNpm(['pack', '--json', '--pack-destination', tarballDirectory], {
     capture: true,
     cwd: distributionDirectory,
   });
@@ -151,8 +170,7 @@ if (!EFFECT_HTTP_CLIENT || !providers || queryKey[0].join('.') !== 'users.get') 
 `,
   );
 
-  run(
-    npmCommand,
+  runNpm(
     [
       'install',
       '--ignore-scripts',

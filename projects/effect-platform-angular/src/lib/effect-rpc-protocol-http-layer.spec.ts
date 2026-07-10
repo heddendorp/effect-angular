@@ -1,10 +1,15 @@
 import { HttpRequest, provideHttpClient, withXhr } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
+import * as Context from 'effect/Context';
 import * as Schema from 'effect/Schema';
 import * as Effect from 'effect/Effect';
 import * as Exit from 'effect/Exit';
+import * as Layer from 'effect/Layer';
+import * as Option from 'effect/Option';
 import { Rpc, RpcClient, RpcGroup } from 'effect/unstable/rpc';
+import { RpcSerialization } from 'effect/unstable/rpc';
+import { HttpClient as EffectHttpClient } from 'effect/unstable/http';
 
 import {
   EFFECT_HTTP_CLIENT_LAYER,
@@ -13,6 +18,7 @@ import {
 } from './effect-http-client';
 import {
   EFFECT_RPC_PROTOCOL_HTTP_LAYER,
+  UnsupportedRpcSerializationError,
   provideEffectRpcProtocolHttpLayer,
 } from './effect-rpc-protocol-http-layer';
 
@@ -103,12 +109,54 @@ describe('Effect RPC protocol HTTP layer provider', () => {
     expect(layer).toBeTruthy();
   });
 
+  it('exposes only the RPC protocol and keeps transport dependencies private', async () => {
+    TestBed.configureTestingModule({
+      providers: [
+        provideHttpClient(withXhr()),
+        provideEffectHttpClient(),
+        provideEffectRpcProtocolHttpLayer({ url: 'https://example.test/rpc' }),
+      ],
+    });
+
+    const layer = TestBed.inject(EFFECT_RPC_PROTOCOL_HTTP_LAYER);
+    const context = await Effect.runPromise(Layer.build(layer).pipe(Effect.scoped));
+
+    expect(Option.isSome(Context.getOption(context, RpcClient.Protocol))).toBe(true);
+    expect(Option.isNone(Context.getOption(context, EffectHttpClient.HttpClient))).toBe(true);
+    expect(Option.isNone(Context.getOption(context, RpcSerialization.RpcSerialization))).toBe(true);
+  });
+
+  it('rejects framed RPC serialization instead of silently buffering the response', async () => {
+    TestBed.configureTestingModule({
+      providers: [
+        provideHttpClient(withXhr()),
+        provideEffectHttpClient(),
+        provideEffectRpcProtocolHttpLayer({
+          url: 'https://example.test/rpc',
+          serializationLayer: RpcSerialization.layerNdjson,
+        }),
+      ],
+    });
+
+    const layer = TestBed.inject(EFFECT_RPC_PROTOCOL_HTTP_LAYER);
+    const exit = await Effect.runPromiseExit(Layer.build(layer).pipe(Effect.scoped));
+
+    expect(Exit.isFailure(exit)).toBe(true);
+    if (Exit.isFailure(exit)) {
+      const failure = Exit.findErrorOption(exit);
+      expect(Option.isSome(failure)).toBe(true);
+      if (Option.isSome(failure)) {
+        expect(failure.value).toBeInstanceOf(UnsupportedRpcSerializationError);
+      }
+    }
+  });
+
   it('routes RPC protocol HTTP requests through Angular HttpClient', async () => {
     TestBed.configureTestingModule({
       providers: [
         provideHttpClient(withXhr()),
         provideHttpClientTesting(),
-        provideEffectHttpClient(),
+        provideEffectHttpClient({ baseUrl: () => 'https://ssr.example.test/' }),
         provideEffectRpcProtocolHttpLayer({ url: '/rpc' }),
       ],
     });
@@ -125,7 +173,8 @@ describe('Effect RPC protocol HTTP layer provider', () => {
 
     const request = await waitForRequest(
       controller,
-      (httpRequest) => httpRequest.url.endsWith('/rpc/') && httpRequest.method === 'POST',
+      (httpRequest) =>
+        httpRequest.url === 'https://ssr.example.test/rpc/' && httpRequest.method === 'POST',
     );
 
     const decodedBody = JSON.parse(decodeBody(request.request.body)) as

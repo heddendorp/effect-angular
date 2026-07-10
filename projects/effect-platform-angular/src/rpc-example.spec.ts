@@ -114,7 +114,7 @@ class AppRpcClient implements AppRpcPromiseClient {
   private readonly adapter = createAngularHttpClient(inject(HttpClient));
   private readonly rpcLayer: Layer.Layer<RpcClient.Protocol, never, never> =
     RpcClient.layerProtocolHttp({ url: '/rpc' }).pipe(
-      Layer.provideMerge([
+      Layer.provide([
         RpcSerialization.layerJson,
         Layer.succeed(EffectHttpClient.HttpClient, this.adapter),
       ]),

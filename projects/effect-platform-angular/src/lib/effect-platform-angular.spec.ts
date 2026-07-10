@@ -1,14 +1,22 @@
-import { HttpClient, HttpRequest, provideHttpClient, withXhr } from '@angular/common/http';
+import {
+  HttpClient,
+  HttpRequest,
+  provideHttpClient,
+  withInterceptors,
+  withXhr,
+} from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
+import { InjectionToken, inject } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import * as Exit from 'effect/Exit';
 import * as Option from 'effect/Option';
 import * as Stream from 'effect/Stream';
 import * as Effect from 'effect/Effect';
 import { Headers, HttpBody, HttpClientError, HttpClientRequest } from 'effect/unstable/http';
+import { EMPTY } from 'rxjs';
 
 import { EFFECT_HTTP_CLIENT, provideEffectHttpClient } from './effect-http-client';
-import { createAngularHttpClient } from './http-client-adapter';
+import { BufferedRequestBodyTooLargeError, createAngularHttpClient } from './http-client-adapter';
 
 describe('Effect HTTP client provider', () => {
   it('registers the Effect HttpClient adapter via Angular DI', () => {
@@ -43,6 +51,35 @@ describe('Effect HTTP client provider', () => {
         expect(failure.value.reason).toBeInstanceOf(HttpClientError.TransportError);
       }
     }
+  });
+
+  it('resolves the public adapter options inside Angular injection context', async () => {
+    const SSR_ORIGIN = new InjectionToken<string>('SSR_ORIGIN');
+    TestBed.configureTestingModule({
+      providers: [
+        provideHttpClient(withXhr()),
+        provideHttpClientTesting(),
+        { provide: SSR_ORIGIN, useValue: 'https://ssr.example.test/' },
+        provideEffectHttpClient({
+          baseUrl: () => inject(SSR_ORIGIN),
+          maxBufferedRequestBodyBytes: 3,
+        }),
+      ],
+    });
+    const client = TestBed.inject(EFFECT_HTTP_CLIENT);
+    const controller = TestBed.inject(HttpTestingController);
+    const request = HttpClientRequest.post('/configured', {
+      body: HttpBody.stream(Stream.fromIterable([new Uint8Array([1, 2, 3])])),
+    });
+
+    const responsePromise = Effect.runPromise(client.execute(request));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    const testRequest = controller.expectOne('https://ssr.example.test/configured');
+
+    expect(Array.from(new Uint8Array(testRequest.request.body as ArrayBuffer))).toEqual([1, 2, 3]);
+    testRequest.flush(new ArrayBuffer(0));
+    await responsePromise;
+    controller.verify();
   });
 });
 
@@ -233,7 +270,7 @@ describe('Angular HttpClient adapter request mapping', () => {
     await response;
   });
 
-  it('maps stream bodies', async () => {
+  it('serializes stream bodies as binary instead of JSON objects', async () => {
     const payload = new Uint8Array([1, 2, 3]);
     const streamBody = HttpBody.stream(Stream.fromIterable([payload]), 'application/octet-stream');
     const request = HttpClientRequest.post('https://example.test/stream', { body: streamBody });
@@ -242,7 +279,123 @@ describe('Angular HttpClient adapter request mapping', () => {
     await new Promise((resolve) => setTimeout(resolve, 0));
     const testRequest = controller.expectOne((req) => req.url === 'https://example.test/stream');
 
-    expect(Array.from(testRequest.request.body as Uint8Array)).toEqual([1, 2, 3]);
+    expect(testRequest.request.body).toBeInstanceOf(ArrayBuffer);
+    expect(testRequest.request.serializeBody()).toBeInstanceOf(ArrayBuffer);
+    expect(Array.from(new Uint8Array(testRequest.request.serializeBody() as ArrayBuffer))).toEqual([
+      1, 2, 3,
+    ]);
+
+    testRequest.flush(new ArrayBuffer(0));
+    await response;
+  });
+
+  it('buffers a stream body at the configured byte limit', async () => {
+    adapter = createAngularHttpClient(TestBed.inject(HttpClient), {
+      maxBufferedRequestBodyBytes: 3,
+    });
+    const streamBody = HttpBody.stream(
+      Stream.fromIterable([new Uint8Array([1]), new Uint8Array([2, 3])]),
+      'application/octet-stream',
+    );
+    const request = HttpClientRequest.post('https://example.test/stream-limit', {
+      body: streamBody,
+    });
+
+    const response = Effect.runPromise(adapter.execute(request));
+    const testRequest = await waitForRequest(
+      (req) => req.url === 'https://example.test/stream-limit',
+    );
+
+    expect(Array.from(new Uint8Array(testRequest.request.body as ArrayBuffer))).toEqual([1, 2, 3]);
+
+    testRequest.flush(new ArrayBuffer(0));
+    await response;
+  });
+
+  it('fails before sending when a stream body exceeds the configured byte limit', async () => {
+    adapter = createAngularHttpClient(TestBed.inject(HttpClient), {
+      maxBufferedRequestBodyBytes: 2,
+    });
+    const streamBody = HttpBody.stream(
+      Stream.fromIterable([new Uint8Array([1, 2]), new Uint8Array([3])]),
+      'application/octet-stream',
+    );
+    const request = HttpClientRequest.post('https://example.test/stream-too-large', {
+      body: streamBody,
+    });
+
+    const exit = await Effect.runPromiseExit(adapter.execute(request));
+
+    controller.expectNone('https://example.test/stream-too-large');
+    expect(Exit.isFailure(exit)).toBe(true);
+    if (Exit.isFailure(exit)) {
+      const failure = Exit.findErrorOption(exit);
+      expect(Option.isSome(failure)).toBe(true);
+      if (Option.isSome(failure)) {
+        expect(failure.value).toBeInstanceOf(HttpClientError.HttpClientError);
+        expect(failure.value.reason).toBeInstanceOf(HttpClientError.TransportError);
+        expect(failure.value.reason.cause).toBeInstanceOf(BufferedRequestBodyTooLargeError);
+      }
+    }
+  });
+
+  it.each([204, 205, 304])('normalizes a non-null body for status %i', async (status) => {
+    const request = HttpClientRequest.get(`https://example.test/status-${status}`);
+    const responsePromise = Effect.runPromise(adapter.execute(request));
+    const testRequest = controller.expectOne(
+      (req) => req.url === `https://example.test/status-${status}`,
+    );
+
+    testRequest.flush(new ArrayBuffer(0), {
+      status,
+      statusText: 'Bodyless',
+    });
+
+    const response = await responsePromise;
+
+    expect(response.status).toBe(status);
+    expect(await Effect.runPromise(response.arrayBuffer)).toEqual(new ArrayBuffer(0));
+  });
+
+  it('maps synchronous response adaptation failures to typed transport errors', async () => {
+    const request = HttpClientRequest.get('https://example.test/invalid-fetch-status');
+    const exitPromise = Effect.runPromiseExit(adapter.execute(request));
+    const testRequest = controller.expectOne(
+      (req) => req.url === 'https://example.test/invalid-fetch-status',
+    );
+
+    testRequest.flush(new ArrayBuffer(0), {
+      status: 101,
+      statusText: 'Switching Protocols',
+    });
+
+    const exit = await exitPromise;
+
+    expect(Exit.isFailure(exit)).toBe(true);
+    if (Exit.isFailure(exit)) {
+      const failure = Exit.findErrorOption(exit);
+      expect(Option.isSome(failure)).toBe(true);
+      if (Option.isSome(failure)) {
+        expect(failure.value).toBeInstanceOf(HttpClientError.HttpClientError);
+        if (failure.value instanceof HttpClientError.HttpClientError) {
+          expect(failure.value.reason).toBeInstanceOf(HttpClientError.TransportError);
+        }
+      }
+    }
+  });
+
+  it('resolves relative URLs against an explicit SSR base URL', async () => {
+    adapter = createAngularHttpClient(TestBed.inject(HttpClient), {
+      baseUrl: 'https://ssr.example.test/app/',
+    });
+    const request = HttpClientRequest.get('/relative', {
+      urlParams: { page: 2 },
+    });
+
+    const response = Effect.runPromise(adapter.execute(request));
+    const testRequest = await waitForRequest(
+      (req) => req.urlWithParams === 'https://ssr.example.test/relative?page=2',
+    );
 
     testRequest.flush(new ArrayBuffer(0));
     await response;
@@ -303,5 +456,37 @@ describe('Angular HttpClient adapter request mapping', () => {
 
     expect(Exit.isFailure(exit)).toBe(true);
     expect(testRequest.cancelled).toBe(true);
+  });
+});
+
+describe('Angular HttpClient adapter completion handling', () => {
+  it('fails when an interceptor completes without emitting a response', async () => {
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({
+      providers: [provideHttpClient(withInterceptors([() => EMPTY]))],
+    });
+    const adapter = createAngularHttpClient(TestBed.inject(HttpClient));
+    const request = HttpClientRequest.get('https://example.test/empty-completion');
+
+    const exit = await Effect.runPromiseExit(
+      adapter.execute(request).pipe(Effect.timeout('100 millis')),
+    );
+
+    expect(Exit.isFailure(exit)).toBe(true);
+    if (Exit.isFailure(exit)) {
+      const failure = Exit.findErrorOption(exit);
+      expect(Option.isSome(failure)).toBe(true);
+      if (Option.isSome(failure)) {
+        expect(failure.value).toBeInstanceOf(HttpClientError.HttpClientError);
+        if (failure.value instanceof HttpClientError.HttpClientError) {
+          expect(failure.value.reason).toBeInstanceOf(HttpClientError.TransportError);
+          if (failure.value.reason instanceof HttpClientError.TransportError) {
+            expect(failure.value.reason.description).toContain(
+              'completed without emitting a response',
+            );
+          }
+        }
+      }
+    }
   });
 });

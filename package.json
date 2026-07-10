@@ -68,7 +68,7 @@
     "@effect/language-service": "^0.86.6",
     "@eslint/js": "10.0.1",
     "@tanstack/angular-query-experimental": "^5.100.9",
-    "@types/node": "^25.6.0",
+    "@types/node": "^26.1.1",
     "@vitest/browser-playwright": "4.1.10",
     "@vitest/coverage-v8": "4.1.10",
     "angular-eslint": "22.0.0",

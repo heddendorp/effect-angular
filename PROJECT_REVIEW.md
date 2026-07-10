@@ -2,9 +2,48 @@
 
 ## Executive summary
 
-The workspace is compact, modern, and well tested on its main unary HTTP/RPC paths. The Angular 22 and Effect 4 beta upgrades build cleanly, and all 56 existing tests pass.
+At the review baseline, the workspace was compact, modern, and well tested on its main unary HTTP/RPC paths. The Angular 22 and Effect 4 beta upgrades built cleanly, and all 56 then-existing tests passed.
 
 The review found no P0/critical product issues. It found 7 P1/high-priority issues, 18 P2/medium-priority issues, and 4 P3/low-priority issues. The most urgent work is to lock npm publishing to reviewed `main` releases, preserve required Effect RPC middleware and schema requirements in the public types, fix streamed request serialization, update the vulnerable Vitest browser toolchain, validate RPC tag trees before building helpers, and add CI for ordinary pull requests.
+
+## Remediation status
+
+The `codex/project-review-hardening` remediation addressed all 29 code, test, packaging, workflow,
+and repository-control findings. GitHub's first `quality` check succeeded, and repository ruleset
+`Protect main` (ID `18776227`) now requires that app-bound check on pull requests while blocking
+direct pushes, branch deletion, and force pushes. Private vulnerability reporting is also enabled.
+
+|   # | Status   | Resolution evidence                                                                                                                                                            |
+| --: | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+|   1 | Resolved | Publishing no longer supports manual refs and accepts only a merged, same-repository `knope/release` pull request commit.                                                      |
+|   2 | Resolved | Stream request bodies are sent as `ArrayBuffer`; Angular `serializeBody()` wire bytes have regression coverage.                                                                |
+|   3 | Resolved | The generated client requires protocol, client middleware, and schema services in `rpcLayer`, and preserves middleware/layer errors in public types.                           |
+|   4 | Resolved | Procedure intent is carried by the payload-schema type through RPC and group composition; re-marking replacement is covered at compile time and runtime.                       |
+|   5 | Resolved | A pre-materialization trie rejects prefix, reserved-name, empty-segment, and order-dependent tag collisions.                                                                   |
+|   6 | Resolved | General `CI / quality` validates every pull-request head and `main` push; active ruleset `Protect main` requires the verified `quality` check from GitHub Actions app `15368`. |
+|   7 | Resolved | Vitest packages are aligned at 4.1.10 and the high/critical `bun audit` gate passes without ignored advisories.                                                                |
+|   8 | Resolved | Hostile tag segments are rejected and every generated namespace uses a null prototype.                                                                                         |
+|   9 | Resolved | Query inputs use deterministic, type-aware canonical JSON with collision/crash regression tests and an `inputEncoder` escape hatch.                                            |
+|  10 | Resolved | TanStack abort signals interrupt in-flight Effect/RPC work and pre-aborted signals never start transport work.                                                                 |
+|  11 | Resolved | 204, 205, and 304 bodies normalize to `null`; response-conversion failures enter the typed transport error channel.                                                            |
+|  12 | Resolved | Angular completion without a response now fails with a typed transport error instead of leaving an Effect pending.                                                             |
+|  13 | Resolved | Query options delegate to TanStack overloads, retain `DataTag`/`select` inference, and restrict heterogeneous factory defaults.                                                |
+|  14 | Resolved | One `ManagedRuntime` and scoped RPC client are retained per Angular injector and disposed exactly once by `DestroyRef`.                                                        |
+|  15 | Resolved | The HTTP protocol uses `Layer.provide`; tests prove internal client and serialization services do not leak or override outer services.                                         |
+|  16 | Resolved | Framed serializers fail layer construction with `UnsupportedRpcSerializationError`; buffered unary response support is explicit in documentation.                              |
+|  17 | Resolved | An injectable/factory `baseUrl` resolves relative URLs during SSR after RPC URL preprocessing.                                                                                 |
+|  18 | Resolved | Upload chunks are collected in linear time with one final allocation and a configurable finite 16 MiB default limit.                                                           |
+|  19 | Resolved | Exact filters use a path predicate and match one procedure across every encoded input.                                                                                         |
+|  20 | Resolved | Every workflow action is pinned to a verified full commit SHA; persisted credentials and early write-token exposure are regression-tested.                                     |
+|  21 | Resolved | General CI covers every final head; tested Dependabot scoping skips dev tooling, maps affected packages, and parses `prevVersion`.                                             |
+|  22 | Resolved | Broken app/Karma commands were replaced by explicit library build/test watches and matching VS Code tasks.                                                                     |
+|  23 | Resolved | Knope 0.22.2 validates package-specific changelogs; the stale root changelog and dead smoke changeset were removed.                                                            |
+|  24 | Resolved | `SECURITY.md` and the Code of Conduct use GitHub private reporting, which is enabled and verified for the repository.                                                          |
+|  25 | Resolved | Every procedure must explicitly use `asRpcQuery(...)` or `asRpcMutation(...)`; unclassified procedures fail compile-time and runtime validation.                               |
+|  26 | Resolved | Stream helpers return a typed failed Effect or rejected Promise and never throw synchronously.                                                                                 |
+|  27 | Resolved | Both manifests declare MIT, both tarballs contain byte-identical `LICENSE` files, and the packed artifacts are asserted.                                                       |
+|  28 | Resolved | Pinned formatting/linting, strict Effect diagnostics, coverage thresholds, artifact checks, and an isolated tarball consumer are CI/release gates.                             |
+|  29 | Resolved | The adapter uses `Effect.void`; strict Effect diagnostics report zero messages.                                                                                                |
 
 ## Scope and method
 
@@ -290,7 +329,7 @@ Recommendation: adopt the idiom when the adapter is next modified.
 - The Effect dependency is now pinned honestly to the tested v4 beta rather than claiming compatibility with every future beta/stable v4 release.
 - The checked-in changeset records the breaking Angular/Effect peer update and gives consumers migration steps.
 
-## Recommended remediation order
+## Remediation order completed
 
 1. Lock the npm release job to reviewed `main` releases and add protected general CI.
 2. Update the Vitest browser toolchain and establish a high/critical audit gate.
@@ -301,7 +340,7 @@ Recommendation: adopt the idiom when the adapter is next modified.
 7. Harden action pinning and Dependabot automation.
 8. Repair packaging/community metadata, developer commands, and repeatable quality gates.
 
-## Validation evidence
+## Baseline validation evidence
 
 - `bun install --frozen-lockfile`: passed with Bun 1.3.14.
 - Node.js validation runtime: 24.15.0, which is supported by Angular 22.
@@ -312,3 +351,20 @@ Recommendation: adopt the idiom when the adapter is next modified.
 - Effect language-service diagnostics: 12 production files checked; 0 errors, 0 warnings, 1 style message.
 - `npm pack --dry-run --json`: both packages packed successfully; missing license contents are recorded above.
 - `bun audit --json`: not clean; two critical Vitest browser advisories plus dev-tool transitive advisories are recorded above.
+
+## Post-remediation validation evidence
+
+- `bun install --frozen-lockfile`: passed with Bun 1.3.14 on supported Node.js 24.15.0.
+- Current npm releases verified on 2026-07-10: Angular CLI/core 22.0.6 and Effect's `beta` tag 4.0.0-beta.97; the project uses both.
+- `bun run format:check` and `bun run lint`: passed, including Angular template/accessibility lint configuration and vendored-source exclusions.
+- `bun run effect:diagnostics`: 31 of 31 files checked; 0 errors, 0 warnings, 0 messages.
+- `bun run test:coverage`: 19 test files and 101 tests passed.
+  - Platform: 94.30% statements, 82.25% branches, 94.73% functions, 94.21% lines.
+  - Query: 97.13% statements, 95.03% branches, 100% functions, 96.96% lines.
+- `bun run pack:check`: both production builds passed; both npm archives contain MIT metadata and byte-identical licenses; an isolated strict-peer consumer installed, typechecked public usage, and ran both archives.
+- `bun run audit:ci`: passed with 0 critical and 0 high advisories and no ignored findings. Remaining advisories are dev-only, currently unfixable in-range transitive moderate/low findings.
+- Knope 0.22.2 `--validate`: passed with both package-specific changelogs configured.
+- Workflow security, Dependabot scoping, Bash syntax, ShellCheck, YAML, `actionlint`, and `zizmor --pedantic` checks: passed.
+- GitHub [CI run 29098336988](https://github.com/heddendorp/effect-angular/actions/runs/29098336988): `quality` succeeded for the draft PR from GitHub Actions app ID 15368.
+- GitHub ruleset `Protect main` (ID `18776227`): active; `main` reports protected and requires the strict app-bound `quality` check plus reviewed pull requests.
+- GitHub private vulnerability reporting: enabled and verified through the repository API.

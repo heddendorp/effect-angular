@@ -1,19 +1,17 @@
-# Change Files
+# Change Files and Release Notes
 
-Every user-facing pull request should include one new `.md` file in `.changeset/`.
+Every user-facing pull request must include one new Markdown file under `.changeset/`. Change
+files placed elsewhere are not release inputs and will be ignored by Knope.
 
-Change files must use frontmatter with `package: change-type` pairs, then a Markdown summary.
-
-This repo currently has two releasable packages in `knope.toml`:
+Change files use frontmatter with `package: change-type` pairs followed by a concise Markdown
+summary. The package keys are the unscoped package identifiers from `knope.toml`:
 
 - `effect-platform-angular`
 - `effect-angular-query`
 
-Valid change types:
-
-- `patch`
-- `minor`
-- `major`
+Valid change types are `patch`, `minor`, and `major`. Use `patch` for backward-compatible fixes,
+`minor` for backward-compatible features, and `major` for breaking changes. Breaking change files
+must include actionable migration instructions.
 
 Example:
 
@@ -23,11 +21,49 @@ effect-platform-angular: patch
 effect-angular-query: major
 ---
 
-### Added
+### Changed
 
-- Initial public release of effect-platform-angular and effect-angular-query.
+- Preserve request cancellation when a query is disposed.
 
 ### Migration
 
-- For breaking (`major`) changes, include explicit migration instructions with old -> new API mappings.
+- For breaking changes, include explicit old -> new API mappings and required setup changes.
 ```
+
+## Generated changelogs
+
+Knope maintains one changelog per published package:
+
+- `projects/effect-platform-angular/CHANGELOG.md`
+- `projects/effect-angular-query/CHANGELOG.md`
+
+Do not hand-edit generated release sections in a feature pull request. Knope consumes the active
+`.changeset/*.md` files, removes them on the release branch, bumps only the affected package
+manifests, and prepends the generated entries to the corresponding package changelogs. GitHub
+releases use the same change-file content.
+
+## Validation
+
+Run the project-specific tests:
+
+```bash
+bun run ng test effect-platform-angular --watch=false
+bun run ng test effect-angular-query --watch=false
+```
+
+Build and verify both npm tarballs:
+
+```bash
+bun run pack:check
+```
+
+The package check builds both libraries, performs npm pack dry-runs, verifies package metadata and
+license artifacts, and installs the resulting tarballs in an isolated consumer fixture.
+
+## Release flow
+
+1. Merge user-facing changes, each with a file under `.changeset/`.
+2. Wait for Knope Bot to create or refresh the `knope/release` pull request.
+3. Review the generated versions, package changelogs, migration notes, and validation checks.
+4. Merge `knope/release`.
+5. Verify the package-specific GitHub releases and npm versions.

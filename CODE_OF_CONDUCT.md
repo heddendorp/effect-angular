@@ -46,8 +46,14 @@ officially representing the project in public spaces.
 ## Enforcement
 
 Instances of abusive, harassing, or otherwise unacceptable behavior may be
-reported to the maintainers at security@effect-angular.dev. All complaints will
-be reviewed and investigated promptly and fairly.
+reported privately through the repository's
+[private reporting form](https://github.com/heddendorp/effect-angular/security/advisories/new).
+Prefix the report title with `[Code of Conduct]` so maintainers can route it correctly. Do not
+include sensitive conduct-report details in a public issue. All complaints will be reviewed and
+investigated promptly and fairly.
+
+Security vulnerabilities use the same private channel and are covered by the
+[security policy](SECURITY.md).
 
 ## Attribution
 

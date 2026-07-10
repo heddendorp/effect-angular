@@ -105,20 +105,18 @@ This repository uses Knope with GitHub Actions for release automation.
   ```
 
 - Knope Bot updates/creates the `knope/release` pull request from `.changeset` files.
+- Knope Bot updates the package-specific changelogs under `projects/*/CHANGELOG.md` from those
+  change files; there is no hand-maintained root changelog.
 - Merging `knope/release` into `main` triggers the `Release` workflow, which runs tests/builds and publishes both libraries to npm.
-
-Required repository secrets:
-
-- `RELEASE_PAT` (recommended): Personal access token with `contents:write` and `pull-requests:write`.
-  The workflows fall back to `GITHUB_TOKEN`, but `RELEASE_PAT` is recommended for reliable branch/PR operations.
 
 Required npm setup:
 
 - Configure both npm packages (`@heddendorp/effect-platform-angular`, `@heddendorp/effect-angular-query`) as trusted publishers linked to this GitHub repository/workflow (OIDC).
 
-Manual first release bootstrap:
+Standard release checklist:
 
 1. Add at least one change file in `.changeset/`.
 2. Wait for Knope Bot to create/update the `knope/release` PR.
-3. Merge the generated `knope/release` pull request.
-4. Confirm the `Release` workflow succeeds and both npm packages publish successfully.
+3. Review generated versions, changelogs, migration notes, and validation checks.
+4. Merge the generated `knope/release` pull request.
+5. Confirm the `Release` workflow succeeds and both npm packages publish successfully.

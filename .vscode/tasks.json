@@ -3,40 +3,32 @@
   "version": "2.0.0",
   "tasks": [
     {
+      "label": "Watch platform library",
       "type": "npm",
-      "script": "start",
+      "script": "watch:platform",
       "isBackground": true,
-      "problemMatcher": {
-        "owner": "typescript",
-        "pattern": "$tsc",
-        "background": {
-          "activeOnStart": true,
-          "beginsPattern": {
-            "regexp": "Changes detected"
-          },
-          "endsPattern": {
-            "regexp": "bundle generation (complete|failed)"
-          }
-        }
-      }
+      "problemMatcher": "$tsc-watch"
     },
     {
+      "label": "Watch query library",
       "type": "npm",
-      "script": "test",
+      "script": "watch:query",
       "isBackground": true,
-      "problemMatcher": {
-        "owner": "typescript",
-        "pattern": "$tsc",
-        "background": {
-          "activeOnStart": true,
-          "beginsPattern": {
-            "regexp": "Changes detected"
-          },
-          "endsPattern": {
-            "regexp": "bundle generation (complete|failed)"
-          }
-        }
-      }
+      "problemMatcher": "$tsc-watch"
+    },
+    {
+      "label": "Watch platform library tests",
+      "type": "npm",
+      "script": "test:watch:platform",
+      "isBackground": true,
+      "problemMatcher": []
+    },
+    {
+      "label": "Watch query library tests",
+      "type": "npm",
+      "script": "test:watch:query",
+      "isBackground": true,
+      "problemMatcher": []
     }
   ]
 }

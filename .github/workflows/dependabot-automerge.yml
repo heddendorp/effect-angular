@@ -345,12 +345,29 @@ jobs:
               gh api --method PATCH \
                 "repos/${GITHUB_REPOSITORY}/git/refs/heads/${HEAD_REF}" \
                 --input - >/dev/null
-          fi
 
-          current_head="$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}" --jq '.head.sha')"
-          if [[ "${current_head}" != "${final_sha}" ]]; then
-            echo "Pull request head changed before approval."
-            exit 1
+            current_head="${EXPECTED_HEAD_SHA}"
+            for _ in {1..15}; do
+              current_head="$(
+                gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}" --jq '.head.sha'
+              )"
+
+              if [[ "${current_head}" == "${final_sha}" ]]; then
+                break
+              fi
+
+              if [[ "${current_head}" != "${EXPECTED_HEAD_SHA}" ]]; then
+                echo "Pull request head changed unexpectedly after the ref update."
+                exit 1
+              fi
+
+              sleep 2
+            done
+
+            if [[ "${current_head}" != "${final_sha}" ]]; then
+              echo "Timed out waiting for the pull request head to reflect the generated changeset."
+              exit 1
+            fi
           fi
 
           echo "final_sha=${final_sha}" >> "${GITHUB_OUTPUT}"

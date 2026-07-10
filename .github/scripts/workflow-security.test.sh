@@ -103,6 +103,9 @@ if [[ "${push_token_count}" -ne 2 ]]; then
 fi
 require_text "${dependabot_automerge}" '[dependabot skip]'
 require_text "${dependabot_automerge}" 'force: false'
+require_text "${dependabot_automerge}" 'for _ in {1..15}; do'
+require_text "${dependabot_automerge}" 'Pull request head changed unexpectedly after the ref update.'
+require_text "${dependabot_automerge}" 'Timed out waiting for the pull request head to reflect the generated changeset.'
 require_text "${dependabot_automerge}" 'GH_TOKEN: ${{ github.token }}'
 require_text "${dependabot_automerge}" 'gh pr review'
 require_text "${dependabot_automerge}" 'strict_required_status_checks_policy == true'

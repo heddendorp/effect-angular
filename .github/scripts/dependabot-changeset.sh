@@ -170,6 +170,7 @@ create_changeset() {
     echo "Automated Dependabot dependency update for PR #${PR_NUMBER}."
     echo
     echo "### Updated dependencies"
+    echo
     echo "${dependency_lines}"
     echo
     echo "Update type: ${UPDATE_TYPE:-unknown}"

@@ -1,4 +1,4 @@
-import { HttpClient, HttpRequest, provideHttpClient } from '@angular/common/http';
+import { HttpClient, HttpRequest, provideHttpClient, withXhr } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
 import * as Exit from 'effect/Exit';
@@ -13,7 +13,7 @@ import { createAngularHttpClient } from './http-client-adapter';
 describe('Effect HTTP client provider', () => {
   it('registers the Effect HttpClient adapter via Angular DI', () => {
     TestBed.configureTestingModule({
-      providers: [provideHttpClient(), provideEffectHttpClient()],
+      providers: [provideHttpClient(withXhr()), provideEffectHttpClient()],
     });
 
     const client = TestBed.inject(EFFECT_HTTP_CLIENT);
@@ -24,7 +24,7 @@ describe('Effect HTTP client provider', () => {
 
   it('exposes an adapter instance from Angular HttpClient', async () => {
     TestBed.configureTestingModule({
-      providers: [provideHttpClient()],
+      providers: [provideHttpClient(withXhr())],
     });
 
     const httpClient = TestBed.inject(HttpClient);
@@ -66,7 +66,7 @@ describe('Angular HttpClient adapter request mapping', () => {
   beforeEach(() => {
     TestBed.resetTestingModule();
     TestBed.configureTestingModule({
-      providers: [provideHttpClient(), provideHttpClientTesting()],
+      providers: [provideHttpClient(withXhr()), provideHttpClientTesting()],
     });
 
     adapter = createAngularHttpClient(TestBed.inject(HttpClient));
@@ -272,7 +272,9 @@ describe('Angular HttpClient adapter request mapping', () => {
   it('maps status errors to Effect responses', async () => {
     const request = HttpClientRequest.get('https://example.test/status-error');
     const responsePromise = Effect.runPromise(adapter.execute(request));
-    const testRequest = controller.expectOne((req) => req.url === 'https://example.test/status-error');
+    const testRequest = controller.expectOne(
+      (req) => req.url === 'https://example.test/status-error',
+    );
 
     testRequest.flush(new ArrayBuffer(0), {
       status: 500,

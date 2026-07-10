@@ -2,9 +2,9 @@
   "name": "@heddendorp/effect-platform-angular",
   "version": "0.0.9",
   "peerDependencies": {
-    "@angular/common": "^21.2.0",
-    "@angular/core": "^21.2.0",
-    "effect": ">=4.0.0-beta.60 <5"
+    "@angular/common": "^22.0.6",
+    "@angular/core": "^22.0.6",
+    "effect": "4.0.0-beta.97"
   },
   "dependencies": {
     "tslib": "^2.8.1"

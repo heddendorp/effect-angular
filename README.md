@@ -17,9 +17,10 @@ This workspace currently ships two Angular libraries:
 
 ## Requirements
 
-- Node.js 22+ recommended
-- Bun `1.3.x`
-- Angular `21+`
+- Node.js `^22.22.3`, `^24.15.0`, or `>=26.0.0`
+- Bun `1.3.14`
+- Angular `22.x` (`>=22.0.6`)
+- Effect `4.0.0-beta.97`
 
 ## Quickstart
 

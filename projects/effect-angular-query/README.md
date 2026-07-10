@@ -15,10 +15,10 @@ bun add @heddendorp/effect-angular-query
 Install required peers in your app:
 
 ```bash
-bun add @tanstack/angular-query-experimental effect
+bun add @tanstack/angular-query-experimental effect@4.0.0-beta.97
 ```
 
-Requires Angular 21.x and Effect v4 beta (`effect >=4.0.0-beta.60 <5`).
+Requires Angular 22.x and Effect v4 beta (`effect 4.0.0-beta.97`).
 
 ## Setup
 

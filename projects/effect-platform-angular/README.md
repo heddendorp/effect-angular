@@ -17,7 +17,7 @@ bun add @heddendorp/effect-platform-angular
 Install required peers in your app:
 
 ```bash
-bun add effect
+bun add effect@4.0.0-beta.97
 ```
 
 ### Register the adapter
@@ -158,5 +158,5 @@ export class AppRpcClient implements AppRpcPromiseClient {
 
 ## Compatibility
 
-- Angular 21.x (peer dependency range currently `^21.2.0`)
-- Effect v4 beta (`effect >=4.0.0-beta.60 <5`)
+- Angular 22.x (peer dependency range `^22.0.6`)
+- Effect v4 beta (`effect 4.0.0-beta.97`)

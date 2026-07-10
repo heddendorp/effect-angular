@@ -1,4 +1,4 @@
-import { HttpRequest, provideHttpClient } from '@angular/common/http';
+import { HttpRequest, provideHttpClient, withXhr } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
 import * as Schema from 'effect/Schema';
@@ -77,7 +77,11 @@ class AppRpcs extends RpcGroup.make(Ping) {}
 describe('Effect RPC protocol HTTP layer provider', () => {
   it('registers EFFECT_HTTP_CLIENT_LAYER via Angular DI', () => {
     TestBed.configureTestingModule({
-      providers: [provideHttpClient(), provideEffectHttpClient(), provideEffectHttpClientLayer()],
+      providers: [
+        provideHttpClient(withXhr()),
+        provideEffectHttpClient(),
+        provideEffectHttpClientLayer(),
+      ],
     });
 
     const layer = TestBed.inject(EFFECT_HTTP_CLIENT_LAYER);
@@ -88,7 +92,7 @@ describe('Effect RPC protocol HTTP layer provider', () => {
   it('registers EFFECT_RPC_PROTOCOL_HTTP_LAYER via Angular DI', () => {
     TestBed.configureTestingModule({
       providers: [
-        provideHttpClient(),
+        provideHttpClient(withXhr()),
         provideEffectHttpClient(),
         provideEffectRpcProtocolHttpLayer({ url: '/rpc' }),
       ],
@@ -102,7 +106,7 @@ describe('Effect RPC protocol HTTP layer provider', () => {
   it('routes RPC protocol HTTP requests through Angular HttpClient', async () => {
     TestBed.configureTestingModule({
       providers: [
-        provideHttpClient(),
+        provideHttpClient(withXhr()),
         provideHttpClientTesting(),
         provideEffectHttpClient(),
         provideEffectRpcProtocolHttpLayer({ url: '/rpc' }),
@@ -140,9 +144,7 @@ describe('Effect RPC protocol HTTP layer provider', () => {
 
     request.flush(
       encodeText(
-        JSON.stringify([
-          { _tag: 'Exit', requestId: requestMessages[0]?.id, exit: exitPayload },
-        ]),
+        JSON.stringify([{ _tag: 'Exit', requestId: requestMessages[0]?.id, exit: exitPayload }]),
       ),
       {
         status: 200,

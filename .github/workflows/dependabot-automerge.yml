@@ -1,0 +1,455 @@
+name: Merge Eligible Dependabot Updates
+
+on:
+  workflow_run:
+    workflows:
+      - Classify Dependabot Updates
+    types:
+      - completed
+
+permissions:
+  actions: read
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: dependabot-automerge-${{ github.event.workflow_run.pull_requests[0].number || github.event.workflow_run.id }}
+  cancel-in-progress: false
+
+jobs:
+  automerge:
+    if: >-
+      ${{ github.event.workflow_run.conclusion == 'success' &&
+          github.event.workflow_run.event == 'pull_request_target' &&
+          github.event.workflow_run.repository.full_name == github.repository }}
+    name: automerge-dependabot-update
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Download and validate trusted policy artifact
+        id: policy
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CLASSIFIER_RUN_ID: ${{ github.event.workflow_run.id }}
+          POLICY_DIR: ${{ runner.temp }}/dependabot-policy
+        run: |
+          set -euo pipefail
+
+          artifacts="$(
+            gh api --paginate \
+              "repos/${GITHUB_REPOSITORY}/actions/runs/${CLASSIFIER_RUN_ID}/artifacts?per_page=100" |
+              jq -s '[.[].artifacts[] |
+                select(.expired == false) |
+                select(.name | test("^dependabot-policy-[0-9]+-[0-9a-f]{40}$"))]'
+          )"
+          artifact_count="$(jq 'length' <<< "${artifacts}")"
+
+          if [[ "${artifact_count}" -eq 0 ]]; then
+            echo "eligible=false" >> "${GITHUB_OUTPUT}"
+            echo "Classifier produced no eligible update artifact."
+            exit 0
+          fi
+
+          if [[ "${artifact_count}" -ne 1 ]]; then
+            echo "Expected exactly one policy artifact, found ${artifact_count}."
+            exit 1
+          fi
+
+          artifact_name="$(jq -r '.[0].name' <<< "${artifacts}")"
+          mkdir -p "${POLICY_DIR}"
+          gh run download "${CLASSIFIER_RUN_ID}" \
+            --repo "${GITHUB_REPOSITORY}" \
+            --name "${artifact_name}" \
+            --dir "${POLICY_DIR}"
+
+          policy="${POLICY_DIR}/policy.json"
+          if [[ ! -f "${policy}" || -L "${policy}" ]]; then
+            echo "Policy artifact is missing a regular policy.json file."
+            exit 1
+          fi
+
+          jq -e --arg repository "${GITHUB_REPOSITORY}" '
+            def stable_version:
+              type == "string" and
+              test("^v?(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$");
+            def version_parts:
+              sub("^v"; "") | split(".") | map(tonumber) | . + [0, 0] | .[0:3];
+            def semver_consistent:
+              (.prevVersion | version_parts) as $previous |
+              (.newVersion | version_parts) as $next |
+              if .updateType == "version-update:semver-patch" then
+                $previous[0] == $next[0] and
+                $previous[1] == $next[1] and
+                $next[2] > $previous[2]
+              elif .updateType == "version-update:semver-minor" then
+                $previous[0] == $next[0] and
+                $next[1] > $previous[1]
+              else
+                false
+              end;
+            .schema_version == 1 and
+            .repository == $repository and
+            (.pr_number | type == "number" and . > 0 and floor == .) and
+            (.head_sha | test("^[0-9a-f]{40}$")) and
+            (.base_sha | test("^[0-9a-f]{40}$")) and
+            (.head_ref | test("^dependabot/[A-Za-z0-9._/-]+$")) and
+            (.package_ecosystem == "bun" or
+             .package_ecosystem == "github-actions" or
+             .package_ecosystem == "github_actions") and
+            (.update_type == "version-update:semver-patch" or
+             .update_type == "version-update:semver-minor") and
+            (.should_create_changeset | type == "boolean") and
+            (.bump_platform | type == "boolean") and
+            (.bump_query | type == "boolean") and
+            (.dependencies | type == "array" and length > 0) and
+            all(.dependencies[];
+              (.dependencyName | type == "string" and length > 0) and
+              (.prevVersion | stable_version) and
+              (.newVersion | stable_version) and
+              (.updateType == "version-update:semver-patch" or
+               .updateType == "version-update:semver-minor") and
+              semver_consistent) and
+            (if any(.dependencies[];
+                 .updateType == "version-update:semver-minor") then
+               .update_type == "version-update:semver-minor"
+             else
+               .update_type == "version-update:semver-patch"
+             end) and
+            (if .should_create_changeset then
+               .package_ecosystem == "bun" and
+               (.bump_platform or .bump_query)
+             else
+               (.bump_platform | not) and (.bump_query | not)
+             end) and
+            (if .should_create_changeset then
+               .changeset_path == (".changeset/dependabot-pr-" + (.pr_number | tostring) + ".md") and
+               (.changeset_sha256 | test("^[0-9a-f]{64}$"))
+             else
+               .changeset_path == "" and .changeset_sha256 == ""
+             end)
+          ' "${policy}" >/dev/null
+
+          pr_number="$(jq -r '.pr_number' "${policy}")"
+          head_sha="$(jq -r '.head_sha' "${policy}")"
+          base_sha="$(jq -r '.base_sha' "${policy}")"
+          expected_artifact="dependabot-policy-${pr_number}-${head_sha}"
+          if [[ "${artifact_name}" != "${expected_artifact}" ]]; then
+            echo "Policy contents do not match the artifact identity."
+            exit 1
+          fi
+
+          should_create="$(jq -r '.should_create_changeset' "${policy}")"
+          changeset_path="$(jq -r '.changeset_path' "${policy}")"
+          if [[ "${should_create}" == "true" ]]; then
+            changeset="${POLICY_DIR}/changeset.md"
+            if [[ ! -f "${changeset}" || -L "${changeset}" ]]; then
+              echo "Eligible package update is missing its generated changeset."
+              exit 1
+            fi
+            expected_sha="$(jq -r '.changeset_sha256' "${policy}")"
+            actual_sha="$(sha256sum "${changeset}" | cut -d' ' -f1)"
+            if [[ "${actual_sha}" != "${expected_sha}" ]]; then
+              echo "Generated changeset digest does not match policy.json."
+              exit 1
+            fi
+
+            bump_platform="$(jq -r '.bump_platform' "${policy}")"
+            bump_query="$(jq -r '.bump_query' "${policy}")"
+            if [[ "${bump_platform}" == "true" ]]; then
+              grep -Fxq 'effect-platform-angular: patch' "${changeset}"
+            elif grep -Fq 'effect-platform-angular:' "${changeset}"; then
+              echo "Generated changeset unexpectedly bumps effect-platform-angular."
+              exit 1
+            fi
+            if [[ "${bump_query}" == "true" ]]; then
+              grep -Fxq 'effect-angular-query: patch' "${changeset}"
+            elif grep -Fq 'effect-angular-query:' "${changeset}"; then
+              echo "Generated changeset unexpectedly bumps effect-angular-query."
+              exit 1
+            fi
+          elif [[ -e "${POLICY_DIR}/changeset.md" ]]; then
+            echo "Non-release update unexpectedly contains a changeset."
+            exit 1
+          fi
+
+          pr="$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${pr_number}")"
+          jq -e \
+            --arg base "${base_sha}" \
+            --arg head_ref "$(jq -r '.head_ref' "${policy}")" \
+            --arg repository "${GITHUB_REPOSITORY}" '
+              .state == "open" and
+              .draft == false and
+              .user.id == 49699333 and
+              .base.ref == "main" and
+              .base.sha == $base and
+              .head.ref == $head_ref and
+              .head.repo.full_name == $repository and
+              (.head.ref | startswith("dependabot/"))
+            ' <<< "${pr}" >/dev/null
+
+          current_head="$(jq -r '.head.sha' <<< "${pr}")"
+          already_mutated=false
+          if [[ "${current_head}" != "${head_sha}" ]]; then
+            if [[ "${should_create}" != "true" ]]; then
+              echo "Pull request head no longer matches its classified dependency commit."
+              exit 1
+            fi
+
+            generated_commit="$(gh api "repos/${GITHUB_REPOSITORY}/git/commits/${current_head}")"
+            jq -e \
+              --arg parent "${head_sha}" \
+              --arg message "chore(changeset): add dependabot changeset for #${pr_number} [dependabot skip]" '
+                (.parents | length) == 1 and
+                .parents[0].sha == $parent and
+                .message == $message
+              ' <<< "${generated_commit}" >/dev/null
+
+            comparison="$(
+              gh api "repos/${GITHUB_REPOSITORY}/compare/${head_sha}...${current_head}"
+            )"
+            jq -e \
+              --arg head "${current_head}" \
+              --arg path "${changeset_path}" '
+                .status == "ahead" and
+                .ahead_by == 1 and
+                .total_commits == 1 and
+                (.commits | length) == 1 and
+                .commits[0].sha == $head and
+                (.files | length) == 1 and
+                .files[0].filename == $path and
+                .files[0].status == "added"
+              ' <<< "${comparison}" >/dev/null
+
+            expected_sha="$(jq -r '.changeset_sha256' "${policy}")"
+            current_sha="$(
+              gh api "repos/${GITHUB_REPOSITORY}/contents/${changeset_path}?ref=${current_head}" \
+                --jq '.content' |
+                tr -d '\n' |
+                base64 --decode |
+                sha256sum |
+                cut -d' ' -f1
+            )"
+            if [[ "${current_sha}" != "${expected_sha}" ]]; then
+              echo "Existing generated changeset does not match the classified artifact."
+              exit 1
+            fi
+
+            already_mutated=true
+          fi
+
+          {
+            echo "eligible=true"
+            echo "pr_number=${pr_number}"
+            echo "head_sha=${head_sha}"
+            echo "base_sha=${base_sha}"
+            echo "head_ref=$(jq -r '.head_ref' "${policy}")"
+            echo "current_head_sha=${current_head}"
+            echo "already_mutated=${already_mutated}"
+            echo "should_create=${should_create}"
+            echo "changeset_path=${changeset_path}"
+          } >> "${GITHUB_OUTPUT}"
+
+      - name: Commit generated changeset
+        if: >-
+          ${{ steps.policy.outputs.eligible == 'true' &&
+              steps.policy.outputs.should_create == 'true' &&
+              steps.policy.outputs.already_mutated != 'true' }}
+        id: mutation
+        env:
+          GH_TOKEN: ${{ secrets.DEPENDABOT_PUSH_TOKEN }}
+          PR_NUMBER: ${{ steps.policy.outputs.pr_number }}
+          EXPECTED_HEAD_SHA: ${{ steps.policy.outputs.head_sha }}
+          EXPECTED_BASE_SHA: ${{ steps.policy.outputs.base_sha }}
+          HEAD_REF: ${{ steps.policy.outputs.head_ref }}
+          SHOULD_CREATE: ${{ steps.policy.outputs.should_create }}
+          CHANGESET_PATH: ${{ steps.policy.outputs.changeset_path }}
+          CHANGESET_FILE: ${{ runner.temp }}/dependabot-policy/changeset.md
+        run: |
+          set -euo pipefail
+
+          if [[ -z "${GH_TOKEN}" ]]; then
+            echo "Missing required Actions secret: DEPENDABOT_PUSH_TOKEN"
+            exit 1
+          fi
+
+          if [[ ! "${HEAD_REF}" =~ ^dependabot/[A-Za-z0-9._/-]+$ ]]; then
+            echo "Unexpected Dependabot branch name."
+            exit 1
+          fi
+
+          pr="$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}")"
+          jq -e \
+            --arg head "${EXPECTED_HEAD_SHA}" \
+            --arg base "${EXPECTED_BASE_SHA}" \
+            --arg ref "${HEAD_REF}" \
+            --arg repository "${GITHUB_REPOSITORY}" '
+              .state == "open" and
+              .draft == false and
+              .user.id == 49699333 and
+              .base.ref == "main" and
+              .base.sha == $base and
+              .head.sha == $head and
+              .head.ref == $ref and
+              .head.repo.full_name == $repository
+            ' <<< "${pr}" >/dev/null
+
+          commits="$(
+            gh api --paginate \
+              "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}/commits?per_page=100" |
+              jq -s 'add'
+          )"
+          jq -e --arg head "${EXPECTED_HEAD_SHA}" '
+            type == "array" and length > 0 and
+            .[-1].sha == $head and
+            all(.[];
+              .author.id == 49699333 and
+              .commit.verification.verified == true)
+          ' <<< "${commits}" >/dev/null
+
+          final_sha="${EXPECTED_HEAD_SHA}"
+          if [[ "${SHOULD_CREATE}" == "true" ]]; then
+            if [[ "${CHANGESET_PATH}" != ".changeset/dependabot-pr-${PR_NUMBER}.md" ]]; then
+              echo "Unexpected generated changeset path."
+              exit 1
+            fi
+
+            base_tree="$(
+              gh api "repos/${GITHUB_REPOSITORY}/git/commits/${EXPECTED_HEAD_SHA}" --jq '.tree.sha'
+            )"
+            blob_sha="$(
+              jq -Rs '{content: ., encoding: "utf-8"}' < "${CHANGESET_FILE}" |
+                gh api --method POST "repos/${GITHUB_REPOSITORY}/git/blobs" --input - --jq '.sha'
+            )"
+            tree_sha="$(
+              jq -n \
+                --arg base_tree "${base_tree}" \
+                --arg path "${CHANGESET_PATH}" \
+                --arg blob "${blob_sha}" \
+                '{
+                  base_tree: $base_tree,
+                  tree: [{path: $path, mode: "100644", type: "blob", sha: $blob}]
+                }' |
+                gh api --method POST "repos/${GITHUB_REPOSITORY}/git/trees" --input - --jq '.sha'
+            )"
+            final_sha="$(
+              jq -n \
+                --arg message "chore(changeset): add dependabot changeset for #${PR_NUMBER} [dependabot skip]" \
+                --arg tree "${tree_sha}" \
+                --arg parent "${EXPECTED_HEAD_SHA}" \
+                '{message: $message, tree: $tree, parents: [$parent]}' |
+                gh api --method POST "repos/${GITHUB_REPOSITORY}/git/commits" --input - --jq '.sha'
+            )"
+
+            jq -n --arg sha "${final_sha}" '{sha: $sha, force: false}' |
+              gh api --method PATCH \
+                "repos/${GITHUB_REPOSITORY}/git/refs/heads/${HEAD_REF}" \
+                --input - >/dev/null
+          fi
+
+          current_head="$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}" --jq '.head.sha')"
+          if [[ "${current_head}" != "${final_sha}" ]]; then
+            echo "Pull request head changed before approval."
+            exit 1
+          fi
+
+          echo "final_sha=${final_sha}" >> "${GITHUB_OUTPUT}"
+
+      - name: Reuse verified generated changeset head
+        if: >-
+          ${{ steps.policy.outputs.eligible == 'true' &&
+              steps.policy.outputs.should_create == 'true' &&
+              steps.policy.outputs.already_mutated == 'true' }}
+        id: recovered
+        env:
+          FINAL_SHA: ${{ steps.policy.outputs.current_head_sha }}
+        run: echo "final_sha=${FINAL_SHA}" >> "${GITHUB_OUTPUT}"
+
+      - name: Preserve existing Dependabot head
+        if: >-
+          ${{ steps.policy.outputs.eligible == 'true' &&
+              steps.policy.outputs.should_create != 'true' }}
+        id: unchanged
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ steps.policy.outputs.pr_number }}
+          EXPECTED_HEAD_SHA: ${{ steps.policy.outputs.head_sha }}
+        run: |
+          set -euo pipefail
+
+          current_head="$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}" --jq '.head.sha')"
+          if [[ "${current_head}" != "${EXPECTED_HEAD_SHA}" ]]; then
+            echo "Pull request head changed before approval."
+            exit 1
+          fi
+
+          echo "final_sha=${EXPECTED_HEAD_SHA}" >> "${GITHUB_OUTPUT}"
+
+      - name: Approve final Dependabot head
+        if: steps.policy.outputs.eligible == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ steps.policy.outputs.pr_number }}
+          FINAL_SHA: ${{ steps.mutation.outputs.final_sha || steps.recovered.outputs.final_sha || steps.unchanged.outputs.final_sha }}
+        run: |
+          set -euo pipefail
+
+          current_head="$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}" --jq '.head.sha')"
+          if [[ "${current_head}" != "${FINAL_SHA}" ]]; then
+            echo "Pull request head changed before approval."
+            exit 1
+          fi
+
+          branch_rules="$(gh api "repos/${GITHUB_REPOSITORY}/rules/branches/main")"
+          jq -e '
+            any(.[];
+              .type == "required_status_checks" and
+              .parameters.strict_required_status_checks_policy == true and
+              any(.parameters.required_status_checks[]; .context == "quality")) and
+            any(.[];
+              .type == "pull_request" and
+              .parameters.required_approving_review_count >= 1 and
+              .parameters.dismiss_stale_reviews_on_push == true and
+              .parameters.require_last_push_approval == true)
+          ' <<< "${branch_rules}" >/dev/null
+
+          already_approved="$(
+            gh api --paginate "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}/reviews?per_page=100" |
+              jq -s --arg commit "${FINAL_SHA}" \
+                'any(.[].[];
+                  .user.login == "github-actions[bot]" and
+                  .state == "APPROVED" and
+                  .commit_id == $commit)'
+          )"
+          if [[ "${already_approved}" != "true" ]]; then
+            gh pr review "${PR_NUMBER}" \
+              --repo "${GITHUB_REPOSITORY}" \
+              --approve \
+              --body "Automated approval for a verified stable minor/patch Dependabot update. Required CI still gates the merge."
+          fi
+
+      - name: Enable squash auto-merge
+        if: steps.policy.outputs.eligible == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.DEPENDABOT_PUSH_TOKEN }}
+          PR_NUMBER: ${{ steps.policy.outputs.pr_number }}
+          FINAL_SHA: ${{ steps.mutation.outputs.final_sha || steps.recovered.outputs.final_sha || steps.unchanged.outputs.final_sha }}
+        run: |
+          set -euo pipefail
+
+          if [[ -z "${GH_TOKEN}" ]]; then
+            echo "Missing required Actions secret: DEPENDABOT_PUSH_TOKEN"
+            exit 1
+          fi
+
+          current_head="$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}" --jq '.head.sha')"
+          if [[ "${current_head}" != "${FINAL_SHA}" ]]; then
+            echo "Pull request head changed before auto-merge was enabled."
+            exit 1
+          fi
+
+          gh pr merge "${PR_NUMBER}" \
+            --repo "${GITHUB_REPOSITORY}" \
+            --auto \
+            --squash \
+            --match-head-commit "${FINAL_SHA}"

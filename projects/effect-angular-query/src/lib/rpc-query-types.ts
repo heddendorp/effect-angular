@@ -6,12 +6,18 @@ import type {
   QueryFunction,
   QueryKey,
 } from '@tanstack/angular-query-experimental';
+import type { Json } from 'effect/Schema';
+
+declare const RPC_QUERY_INPUT_TYPE: unique symbol;
 
 export type RpcQueryKeyType = 'query' | 'path' | 'mutation';
 
 export type RpcQueryKeyMeta<TInput> = {
-  readonly input?: TInput;
+  /** Canonical JSON used by TanStack Query's default key hasher. */
+  readonly input?: Json;
   readonly type?: RpcQueryKeyType;
+  /** Retains the procedure input type without placing the raw value in the key. */
+  readonly [RPC_QUERY_INPUT_TYPE]?: TInput;
 };
 
 export type RpcQueryKey<TInput = unknown> = readonly [readonly string[], RpcQueryKeyMeta<TInput>];

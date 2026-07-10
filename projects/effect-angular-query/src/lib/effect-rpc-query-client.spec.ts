@@ -6,22 +6,27 @@ import { Rpc, RpcClient, RpcGroup } from 'effect/unstable/rpc';
 
 import {
   asRpcMutation,
+  asRpcQuery,
   createEffectRpcAngularClient,
   createEffectRpcAngularClientConfig,
 } from './effect-rpc-query-client';
 
-const Ping = Rpc.make('Ping', {
-  payload: Schema.Struct({ id: Schema.String }),
-  success: Schema.Struct({ name: Schema.String }),
-});
+const Ping = asRpcQuery(
+  Rpc.make('Ping', {
+    payload: Schema.Struct({ id: Schema.String }),
+    success: Schema.Struct({ name: Schema.String }),
+  }),
+);
 const Save = Rpc.make('save', {
   payload: Schema.Struct({ id: Schema.String, name: Schema.String }),
   success: Schema.Struct({ ok: Schema.Boolean }),
 });
-const FinanceReceiptsMy = Rpc.make('finance.receipts.my', {
-  payload: Schema.Undefined,
-  success: Schema.Struct({ total: Schema.Number }),
-});
+const FinanceReceiptsMy = asRpcQuery(
+  Rpc.make('finance.receipts.my', {
+    payload: Schema.Undefined,
+    success: Schema.Struct({ total: Schema.Number }),
+  }),
+);
 
 class AppRpcs extends RpcGroup.make(Ping, asRpcMutation(Save), FinanceReceiptsMy) {}
 
@@ -30,7 +35,7 @@ const createRpcLayer = () =>
     RpcClient.Protocol,
     RpcClient.Protocol.make(() =>
       Effect.succeed({
-        send: () => Effect.succeed(undefined),
+        send: () => Effect.void,
         supportsAck: false,
         supportsTransferables: false,
       }),

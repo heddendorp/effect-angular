@@ -1,4 +1,10 @@
-import { createRpcQueryOptions } from './rpc-query-options';
+import { QueryClient } from '@tanstack/angular-query-experimental';
+
+import {
+  createRpcQueryOptions,
+  type RpcDefinedQueryOptions,
+  type RpcUndefinedQueryOptions,
+} from './rpc-query-options';
 
 describe('createRpcQueryOptions', () => {
   it('builds query options with queryKey and queryFn', () => {
@@ -62,5 +68,62 @@ describe('createRpcQueryOptions', () => {
       ['app', 'v1', 'rpc', 'profile'],
       { input: { id: '42' }, type: 'query' },
     ]);
+  });
+
+  it('retains the queryFn data tag on the generated query key', () => {
+    const options = createRpcQueryOptions({
+      pathSegments: ['rpc', 'profile'],
+      queryFn: async () => ({ name: 'Ada' }),
+    });
+    const queryClient = new QueryClient();
+    const cached = queryClient.getQueryData(options.queryKey);
+
+    expectTypeOf(cached).toEqualTypeOf<{ name: string } | undefined>();
+    expect(cached).toBeUndefined();
+  });
+
+  it('infers selected data independently from queryFn data', () => {
+    const options = createRpcQueryOptions({
+      pathSegments: ['rpc', 'profile'],
+      queryFn: async () => ({ name: 'Ada' }),
+      overrides: {
+        select: (profile) => profile.name,
+      },
+    });
+
+    expectTypeOf(options).toMatchTypeOf<
+      RpcUndefinedQueryOptions<unknown, { name: string }, Error, string>
+    >();
+    expect(options.select?.({ name: 'Grace' })).toBe('Grace');
+  });
+
+  it('retains defined initial-data typing with a select transform', () => {
+    const options = createRpcQueryOptions({
+      pathSegments: ['rpc', 'profile'],
+      queryFn: async () => ({ name: 'Ada' }),
+      overrides: {
+        initialData: { name: 'Grace' },
+        select: (profile) => profile.name,
+      },
+    });
+
+    expectTypeOf(options).toMatchTypeOf<
+      RpcDefinedQueryOptions<unknown, { name: string }, Error, string>
+    >();
+    expect(
+      typeof options.initialData === 'function' ? options.initialData() : options.initialData,
+    ).toEqual({ name: 'Grace' });
+  });
+
+  it('rejects initial data that does not match queryFn data', () => {
+    createRpcQueryOptions({
+      pathSegments: ['rpc', 'profile'],
+      queryFn: async () => ({ name: 'Ada' }),
+      overrides: {
+        // @ts-expect-error Initial data is the raw queryFn shape, not the selected shape.
+        initialData: 'Grace',
+        select: (profile) => profile.name,
+      },
+    });
   });
 });

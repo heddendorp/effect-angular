@@ -4,6 +4,9 @@ version: 2
 updates:
   - package-ecosystem: 'bun'
     directory: '/'
+    # repos/effect is read-only upstream reference material, not part of this workspace.
+    exclude-paths:
+      - 'repos/effect/**'
     schedule:
       interval: 'weekly'
       day: 'tuesday'

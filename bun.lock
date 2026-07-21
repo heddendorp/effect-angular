@@ -21,7 +21,7 @@
         "@angular/compiler-cli": "^22.0.7",
         "@effect/language-service": "^0.87.0",
         "@eslint/js": "10.0.1",
-        "@tanstack/angular-query-experimental": "^5.101.2",
+        "@tanstack/angular-query-experimental": "^5.101.3",
         "@types/node": "^26.1.1",
         "@vitest/browser-playwright": "4.1.10",
         "@vitest/coverage-v8": "4.1.10",
@@ -501,11 +501,11 @@
 
     "@standard-schema/spec": ["@standard-schema/spec@1.1.0", "", {}, "sha512-l2aFy5jALhniG5HgqrD6jXLi/rUWrKvqN/qJx6yoJsgKhblVd+iqqU4RCXavm/jPityDo5TCvKMnpjKnOriy0w=="],
 
-    "@tanstack/angular-query-experimental": ["@tanstack/angular-query-experimental@5.101.2", "", { "dependencies": { "@tanstack/query-core": "5.101.2" }, "optionalDependencies": { "@tanstack/query-devtools": "5.101.2" }, "peerDependencies": { "@angular/common": ">=16.0.0", "@angular/core": ">=16.0.0" } }, "sha512-hjQVD0nO35ANRj+wrryK7JxryvHaufeOAYjkyGbQT6ox/ugElo/r4jKLJ66XPK/COh1hqlnqHjgDVxkzbw7egg=="],
+    "@tanstack/angular-query-experimental": ["@tanstack/angular-query-experimental@5.101.3", "", { "dependencies": { "@tanstack/query-core": "5.101.3" }, "optionalDependencies": { "@tanstack/query-devtools": "5.101.3" }, "peerDependencies": { "@angular/common": ">=16.0.0", "@angular/core": ">=16.0.0" } }, "sha512-/wO0e4cW0mdsDFAIKa/FdwuS7e1vnB25sScSQYaN/XkFbUP61P1oxEp2Hz7jocHeqawOxKtha1Kn0kkqw6n2ZA=="],
 
-    "@tanstack/query-core": ["@tanstack/query-core@5.101.2", "", {}, "sha512-hH5MLoJhF7KaIGd7q3xTXGXvslI+GYlM1Z/35aSHHWaCJWB7XvTSHYuV3eM7tw+aE0mT/xMro4M4Q9rCGHT0lw=="],
+    "@tanstack/query-core": ["@tanstack/query-core@5.101.3", "", {}, "sha512-pWLyu7AjFFVM5G+frjcL81kKEW9R8GCCPKnL3uaWbMwd2f3ZINFCuy+PtKkdz/+pKw/f/XMsFsYq/H+uJHM4GQ=="],
 
-    "@tanstack/query-devtools": ["@tanstack/query-devtools@5.101.2", "", {}, "sha512-o+wHcqgN7Pp0s8v1i0UGq/ZrrEKrxdIiMQmKRdYb2w7NPtylYSJ4+wg/tIn71m9DLstwUwdEGAvROdly6HXP6w=="],
+    "@tanstack/query-devtools": ["@tanstack/query-devtools@5.101.3", "", {}, "sha512-twEAOB5uBmpFAdlIuy3KIUujwmoZIhCXZpu1PFMTress2XvK/CyzsvV70WrhtTcocszKpbvwMR0Bxq4dqkvH0g=="],
 
     "@tufjs/canonical-json": ["@tufjs/canonical-json@2.0.0", "", {}, "sha512-yVtV8zsdo8qFHe+/3kw81dSLyF7D576A5cCFCi4X7B39tWT7SekaEFUnvnWJHz+9qO7qJTah1JbrDjWKqFtdWA=="],
 

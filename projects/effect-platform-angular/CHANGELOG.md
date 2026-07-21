@@ -3,6 +3,49 @@
 This file records the release history for `@heddendorp/effect-platform-angular`.
 Knope generates new entries from change files in `.changeset/`.
 
+## 0.1.0 (2026-07-21)
+
+### Breaking Changes
+
+#### Changed
+
+- Require Angular 22.0.6 or newer within the Angular 22 release line and Effect 4.0.0-beta.97.
+
+#### Migration
+
+- Upgrade applications to Angular 22.0.6 and TypeScript 6.0.3, use a supported Node.js release, and install `effect@4.0.0-beta.97` before updating either package.
+
+#### Changed
+
+- Preserve binary stream request bodies, cap buffered uploads at a configurable 16 MiB by default, report upload-limit failures as non-retryable encoding errors, support an explicit SSR base URL with typed invalid-URL failures, and fail bodyless or prematurely completed Angular responses without hanging.
+- Reject framed RPC serializers with `UnsupportedRpcSerializationError` because Angular `HttpClient` cannot progressively deliver those responses.
+
+#### Migration
+
+- Set `maxBufferedRequestBodyBytes` when calling `provideEffectHttpClient(...)` if an application intentionally sends larger buffered uploads, or use a streaming-capable transport.
+- Configure `baseUrl` for relative URLs during SSR.
+- Use unframed JSON RPC serialization with the Angular HTTP adapter; move framed or streaming RPC procedures to a streaming-capable protocol.
+
+### Fixes
+
+- Include MIT license metadata and the full license text in both npm packages.
+
+#### Automated Dependabot dependency update for PR #49.
+
+#### Updated dependencies
+
+- @angular/build: 22.0.6 -> 22.0.7
+- @angular/cli: 22.0.6 -> 22.0.7
+- @angular/common: 22.0.6 -> 22.0.7
+- @angular/compiler: 22.0.6 -> 22.0.7
+- @angular/compiler-cli: 22.0.6 -> 22.0.7
+- @angular/core: 22.0.6 -> 22.0.7
+- @angular/forms: 22.0.6 -> 22.0.7
+- @angular/platform-browser: 22.0.6 -> 22.0.7
+- @angular/router: 22.0.6 -> 22.0.7
+
+Update type: version-update:semver-patch
+
 ## 0.0.9 (2026-05-06)
 
 ### Features

@@ -19,7 +19,7 @@
         "@angular/build": "^22.0.7",
         "@angular/cli": "^22.0.7",
         "@angular/compiler-cli": "^22.0.7",
-        "@effect/language-service": "^0.87.0",
+        "@effect/language-service": "^0.87.1",
         "@eslint/js": "10.0.1",
         "@tanstack/angular-query-experimental": "^5.101.3",
         "@types/node": "^26.1.1",
@@ -183,7 +183,7 @@
 
     "@csstools/css-tokenizer": ["@csstools/css-tokenizer@4.0.0", "", {}, "sha512-QxULHAm7cNu72w97JUNCBFODFaXpbDg+dP8b/oWFAZ2MTRppA3U00Y2L1HqaS4J6yBqxwa/Y3nMBaxVKbB/NsA=="],
 
-    "@effect/language-service": ["@effect/language-service@0.87.0", "", { "bin": { "effect-language-service": "cli.js" } }, "sha512-GwZtEwBaOMyKea6YAtN0T0OGBtzJ8/y0KUIfyg29u3hnMRiXKlR2BRDqJmi+SbgaODJNNB3YOd6KuRB/vsxnWw=="],
+    "@effect/language-service": ["@effect/language-service@0.87.1", "", { "bin": { "effect-language-service": "cli.js" } }, "sha512-kcljlJmEgqg5mFAM6UShJYJjMqJb3TbHHxrK8Qoubvwugc0aVWpRkbdgQvK5b17puOt3BKXXKOmcV+oQt0oQqQ=="],
 
     "@esbuild/aix-ppc64": ["@esbuild/aix-ppc64@0.28.1", "", { "os": "aix", "cpu": "ppc64" }, "sha512-Svl7tq8k/08+p6CXPpRjQ1fKX+1odH/BQbb48fV6fj3CWHhsoIOoY87w1oHXm0qEpkIK3ZfVgp0hed3XBXzXMQ=="],
 

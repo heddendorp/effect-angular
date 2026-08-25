@@ -68,9 +68,9 @@
     "@effect/language-service": "^0.87.0",
     "@eslint/js": "10.0.1",
     "@tanstack/angular-query-experimental": "^5.101.3",
-    "@types/node": "^26.1.1",
-    "@vitest/browser-playwright": "4.1.10",
-    "@vitest/coverage-v8": "4.1.10",
+    "@types/node": "^26.2.0",
+    "@vitest/browser-playwright": "4.1.11",
+    "@vitest/coverage-v8": "4.1.11",
     "angular-eslint": "22.1.0",
     "cross-spawn": "7.0.6",
     "eslint": "10.7.0",
@@ -79,6 +79,6 @@
     "prettier": "3.9.6",
     "typescript": "~6.0.3",
     "typescript-eslint": "8.65.0",
-    "vitest": "4.1.10"
+    "vitest": "4.1.11"
   }
 }

@@ -243,6 +243,24 @@ describe('Angular HttpClient adapter request mapping', () => {
     await response;
   });
 
+  it('reports a locked web stream as a typed encoding failure', async () => {
+    const stream = new ReadableStream<Uint8Array>();
+    const reader = stream.getReader();
+    try {
+      const url = 'https://example.test/locked';
+      const exit = await Effect.runPromiseExit(
+        adapter.execute(HttpClientRequest.post(url, { body: HttpBody.raw(stream) })),
+      );
+      expect(Exit.findErrorOption(exit)).toMatchObject({
+        _tag: 'Some',
+        value: { reason: { _tag: 'EncodeError' } },
+      });
+      controller.expectNone(url);
+    } finally {
+      reader.releaseLock();
+    }
+  });
+
   it('sends a web Request body as bytes and rejects it when over the limit', async () => {
     const id = 'https://example.test/web-body';
     const request = () =>

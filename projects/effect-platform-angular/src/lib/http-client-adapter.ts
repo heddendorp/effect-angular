@@ -205,7 +205,7 @@ const resolveBody = (
           request,
           HttpBody.stream(stream, body.contentType, body.contentLength),
           maxBufferedRequestBodyBytes,
-        );
+        ).pipe(Effect.catchDefect((cause) => Effect.fail(encodeError(request, cause))));
       }
       return Effect.succeed(raw);
     }

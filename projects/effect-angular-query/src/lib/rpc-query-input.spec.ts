@@ -1,6 +1,21 @@
+import { createRpcQueryKey } from './rpc-query-key';
 import { snapshotQueryInput } from './rpc-query-input';
 
 describe('query request snapshots', () => {
+  it('preserves schema-visible hidden fields and aliases used by custom encoders', () => {
+    const key = new Date(1);
+    const input = { key, labels: new Map([[key, 'first']]) };
+    const snapshot = snapshotQueryInput(input);
+    expect(snapshot.key).not.toBe(key);
+    expect(snapshot.labels.get(snapshot.key)).toBe('first');
+
+    const hidden = Object.defineProperty({ id: 1 }, 'id', { enumerable: false });
+    const captured = snapshotQueryInput(hidden);
+    expect(captured.id).toBe(1);
+    expect(Object.keys(captured)).toEqual([]);
+    expect(createRpcQueryKey(['lookup'], { input: captured })[1].input).toEqual({ id: 1 });
+  });
+
   it('isolates nested mutable values and preserves types and ordering', () => {
     const date = new Date(1);
     const url = new URL('https://example.test/path');

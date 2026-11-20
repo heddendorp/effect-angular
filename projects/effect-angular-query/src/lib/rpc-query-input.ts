@@ -15,14 +15,13 @@ function copy(value: unknown, seen: WeakMap<object, unknown>): unknown {
       : Object.create(prototype);
     seen.set(value, result);
     for (const key of Reflect.ownKeys(value)) {
-      if (Object.prototype.propertyIsEnumerable.call(value, key)) {
-        Object.defineProperty(result, key, {
-          value: copy(Reflect.get(value, key), seen),
-          enumerable: true,
-          writable: true,
-          configurable: true,
-        });
-      }
+      if (Array.isArray(value) && key === 'length') continue;
+      Object.defineProperty(result, key, {
+        value: copy(Reflect.get(value, key), seen),
+        enumerable: Object.prototype.propertyIsEnumerable.call(value, key),
+        writable: true,
+        configurable: true,
+      });
     }
     return result;
   }
@@ -38,6 +37,12 @@ function copy(value: unknown, seen: WeakMap<object, unknown>): unknown {
     for (const entry of value) result.add(copy(entry, seen));
     return result;
   }
+  const result = copyLeaf(value);
+  seen.set(value, result);
+  return result;
+}
+
+function copyLeaf(value: object): object {
   if (value instanceof URL) return new URL(value.href);
   if (value instanceof Date) return new Date(value.getTime());
   if (value instanceof RegExp) {
@@ -49,7 +54,9 @@ function copy(value: unknown, seen: WeakMap<object, unknown>): unknown {
   if (ArrayBuffer.isView(value)) {
     const bytes = new Uint8Array(value.buffer, value.byteOffset, value.byteLength).slice();
     // All standard typed arrays and DataView accept a backing ArrayBuffer.
-    const View = prototype.constructor as new (buffer: ArrayBuffer) => ArrayBufferView;
+    const View = Object.getPrototypeOf(value).constructor as new (
+      buffer: ArrayBuffer,
+    ) => ArrayBufferView;
     return new View(bytes.buffer);
   }
   // Custom instances may use private fields. Their encoder defines query identity.

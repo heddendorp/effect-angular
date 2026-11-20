@@ -176,7 +176,7 @@ const canonicalize = (
     }
 
     const record = input as Record<string, unknown>;
-    const entries = Object.keys(record)
+    const entries = Object.getOwnPropertyNames(record)
       .sort()
       .map((key) => [key, canonicalize(record[key], ancestors, [...path, key])] as const);
 

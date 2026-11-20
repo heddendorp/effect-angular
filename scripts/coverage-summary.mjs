@@ -1,9 +1,12 @@
-import { readFile } from 'node:fs/promises';
+import { appendFile, readFile } from 'node:fs/promises';
 
 const workspace = JSON.parse(await readFile('angular.json', 'utf8'));
-console.log('## Test coverage\n');
-console.log('| Library | Lines | Statements | Branches | Functions |');
-console.log('| --- | ---: | ---: | ---: | ---: |');
+const rows = [
+  '## Test coverage',
+  '',
+  '| Library | Lines | Statements | Branches | Functions |',
+  '| --- | ---: | ---: | ---: | ---: |',
+];
 for (const [name, project] of Object.entries(workspace.projects)) {
   if (!project.architect?.test?.configurations?.coverage) continue;
   try {
@@ -12,10 +15,15 @@ for (const [name, project] of Object.entries(workspace.projects)) {
       const { pct, covered, total: count } = total[metric];
       return `${pct}% (${covered}/${count})`;
     });
-    console.log(`| ${name} | ${cells.join(' | ')} |`);
+    rows.push(`| ${name} | ${cells.join(' | ')} |`);
+    console.log(
+      `::notice file=angular.json,title=Coverage for ${name}::${cells[0]} lines, ${cells[1]} statements, ${cells[2]} branches, ${cells[3]} functions`,
+    );
   } catch (error) {
-    console.log(`| ${name} | Report unavailable | | | |`);
+    rows.push(`| ${name} | Report unavailable | | | |`);
     console.error(error);
     process.exitCode = 1;
   }
 }
+
+await appendFile(process.env.GITHUB_STEP_SUMMARY, rows.join('\n') + '\n');

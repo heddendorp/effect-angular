@@ -64,7 +64,7 @@ jobs:
 
       - name: Summarize coverage
         if: ${{ !cancelled() && steps.tests.outcome != 'skipped' }}
-        run: node scripts/coverage-summary.mjs >> "$GITHUB_STEP_SUMMARY"
+        run: node scripts/coverage-summary.mjs
 
       - name: Save coverage reports
         if: ${{ !cancelled() && steps.tests.outcome != 'skipped' }}
@@ -79,30 +79,3 @@ jobs:
 
       - name: Verify package archives and consumer installation
         run: bun run pack:check
-
-  report-coverage:
-    needs: quality
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      pull-requests: read
-      code-quality: write
-    steps:
-      - name: Download coverage
-        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
-        with:
-          name: coverage
-          path: coverage
-
-      - name: Report effect-platform-angular line coverage
-        uses: actions/upload-code-coverage@2b21a77928be8d5168c2b9581a67f2adbebacc52 # v1.4.4
-        with:
-          file: coverage/effect-platform-angular/cobertura-coverage.xml
-          language: TypeScript
-          label: code-coverage/effect-platform-angular
-      - name: Report effect-angular-query line coverage
-        uses: actions/upload-code-coverage@2b21a77928be8d5168c2b9581a67f2adbebacc52 # v1.4.4
-        with:
-          file: coverage/effect-angular-query/cobertura-coverage.xml
-          language: TypeScript
-          label: code-coverage/effect-angular-query

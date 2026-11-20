@@ -11,6 +11,7 @@ import {
   HttpClientRequest,
   HttpClientResponse,
 } from 'effect/http';
+import { take } from 'rxjs/operators';
 import * as Effect from 'effect/Effect';
 import * as Stream from 'effect/Stream';
 
@@ -179,8 +180,35 @@ const resolveBody = (
   switch (body._tag) {
     case 'Empty':
       return Effect.void;
-    case 'Raw':
-      return Effect.succeed(body.body);
+    case 'Raw': {
+      const raw = body.body;
+      if (ArrayBuffer.isView(raw)) {
+        return Effect.try({
+          try: () => toArrayBuffer(new Uint8Array(raw.buffer, raw.byteOffset, raw.byteLength)),
+          catch: (cause) => encodeError(request, cause),
+        });
+      }
+      if (typeof ReadableStream !== 'undefined' && raw instanceof ReadableStream) {
+        const stream = Stream.fromReadableStream<unknown, BufferedRequestBodyBufferingError>({
+          evaluate: () => raw,
+          onError: (cause) => new BufferedRequestBodyBufferingError(cause),
+        }).pipe(
+          Stream.mapEffect((chunk) =>
+            ArrayBuffer.isView(chunk)
+              ? Effect.succeed(new Uint8Array(chunk.buffer, chunk.byteOffset, chunk.byteLength))
+              : Effect.fail(
+                  new BufferedRequestBodyBufferingError('Expected a byte stream request body'),
+                ),
+          ),
+        );
+        return collectStreamBody(
+          request,
+          HttpBody.stream(stream, body.contentType, body.contentLength),
+          maxBufferedRequestBodyBytes,
+        ).pipe(Effect.catchDefect((cause) => Effect.fail(encodeError(request, cause))));
+      }
+      return Effect.succeed(raw);
+    }
     case 'Uint8Array':
       return Effect.succeed(
         isJsonContentType(body.contentType)
@@ -288,6 +316,7 @@ export const createAngularHttpClient = (
               observe: 'response',
               responseType: 'arraybuffer',
             })
+            .pipe(take(1))
             .subscribe({
               next: resumeResponse,
               error: (cause) => {
@@ -327,16 +356,17 @@ export const createAngularHttpClient = (
             subscription.unsubscribe();
           };
 
+          if (subscription.closed) {
+            return;
+          }
           if (signal.aborted) {
             abort();
           } else {
             signal.addEventListener('abort', abort, { once: true });
+            subscription.add(() => signal.removeEventListener('abort', abort));
           }
 
-          return Effect.sync(() => {
-            signal.removeEventListener('abort', abort);
-            subscription.unsubscribe();
-          });
+          return Effect.sync(abort);
         },
       ),
     ),

@@ -1,4 +1,4 @@
-import { hashKey } from '@tanstack/angular-query-experimental';
+import { hashKey, QueryClient } from '@tanstack/angular-query-experimental';
 
 import { createRpcQueryKey, RpcQueryKeyEncodingError } from './rpc-query-key';
 
@@ -44,6 +44,17 @@ describe('createRpcQueryKey', () => {
       ['rpc', 'profile'],
       { input },
     ]);
+  });
+
+  it('keeps ordinary records and records with an own __proto__ field in distinct cache entries', () => {
+    const client = new QueryClient();
+    const ordinary = createRpcQueryKey(['lookup'], { input: {} });
+    const withField = createRpcQueryKey(['lookup'], { input: { ['__proto__']: 'category' } });
+    client.setQueryData(ordinary, 'first');
+    client.setQueryData(withField, 'second');
+    expect(client.getQueryData(ordinary)).toBe('first');
+    expect(client.getQueryData(withField)).toBe('second');
+    client.clear();
   });
 
   it('produces hashable, distinct keys for bigint values', () => {

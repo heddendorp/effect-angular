@@ -12,7 +12,7 @@ updates:
       day: 'tuesday'
       time: '08:00'
       timezone: 'UTC'
-    open-pull-requests-limit: 8
+    open-pull-requests-limit: 5
     rebase-strategy: 'auto'
     labels:
       - 'dependencies'
@@ -24,7 +24,9 @@ updates:
       angular:
         patterns:
           - '@angular/*'
+          - 'angular-eslint'
           - 'ng-packagr'
+          - 'rxjs'
         update-types:
           - 'patch'
           - 'minor'
@@ -41,13 +43,24 @@ updates:
         update-types:
           - 'patch'
           - 'minor'
-      tooling:
+      testing:
         patterns:
-          - 'typescript'
           - 'vitest'
           - '@vitest/*'
           - 'jsdom'
+        update-types:
+          - 'patch'
+          - 'minor'
+      tooling:
+        patterns:
           - '@types/node'
+          - 'typescript'
+          - 'tslib'
+          - 'eslint'
+          - '@eslint/*'
+          - 'typescript-eslint'
+          - 'prettier'
+          - 'cross-spawn'
         update-types:
           - 'patch'
           - 'minor'
@@ -69,7 +82,7 @@ updates:
       day: 'tuesday'
       time: '08:30'
       timezone: 'UTC'
-    open-pull-requests-limit: 3
+    open-pull-requests-limit: 2
     rebase-strategy: 'auto'
     labels:
       - 'dependencies'
@@ -78,3 +91,10 @@ updates:
     commit-message:
       prefix: 'ci'
       include: 'scope'
+    groups:
+      actions:
+        patterns:
+          - '*'
+        update-types:
+          - 'patch'
+          - 'minor'

@@ -378,7 +378,7 @@ run_classify truncated-actions github_actions version-update:semver-patch \
 assert_output "${classification_output}" 'automerge_eligible=false'
 assert_output "${classification_output}" 'reason=unexpected_github_actions_diff'
 
-swapped_actions_metadata='[
+grouped_actions_metadata='[
   {
     "dependencyName": "example/action-a",
     "dependencyType": "direct:production",
@@ -402,9 +402,15 @@ swapped_actions_metadata='[
     "maintainerChanges": false
   }
 ]'
+grouped_actions_patch='[{"filename":".github/workflows/ci.yml","status":"modified","additions":2,"deletions":2,"changes":4,"patch":"@@ -1,2 +1,2 @@\n-        uses: example/action-a@1111111111111111111111111111111111111111 # v1.0.0\n+        uses: example/action-a@2222222222222222222222222222222222222222 # v1.0.1\n-        uses: example/action-b@3333333333333333333333333333333333333333 # v2.0.0\n+        uses: example/action-b@4444444444444444444444444444444444444444 # v2.0.1"}]'
+run_classify grouped-actions github_actions version-update:semver-patch \
+  "${grouped_actions_metadata}" "${grouped_actions_patch}"
+assert_output "${classification_output}" 'automerge_eligible=true'
+assert_output "${classification_output}" 'should_create=false'
+
 swapped_actions_patch='[{"filename":".github/workflows/ci.yml","status":"modified","additions":2,"deletions":2,"changes":4,"patch":"@@ -1,2 +1,2 @@\n-        uses: example/action-a@1111111111111111111111111111111111111111 # v1.0.0\n-        uses: example/action-a@1111111111111111111111111111111111111111 # v1.0.0\n+        uses: example/action-b@2222222222222222222222222222222222222222 # v2.0.1\n+        uses: example/action-b@2222222222222222222222222222222222222222 # v2.0.1"}]'
 run_classify swapped-actions github_actions version-update:semver-patch \
-  "${swapped_actions_metadata}" "${swapped_actions_patch}"
+  "${grouped_actions_metadata}" "${swapped_actions_patch}"
 assert_output "${classification_output}" 'automerge_eligible=false'
 assert_output "${classification_output}" 'reason=unexpected_github_actions_diff'
 

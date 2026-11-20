@@ -1,6 +1,6 @@
+import { assert, describe, it } from "@effect/vitest"
 import { Chunk, Equal, Equivalence, flow, identity, Option, pipe, Result, String as Str } from "effect"
 import { inspect } from "node:util"
-import { describe, it } from "vitest"
 import {
   assertFailure,
   assertFalse,
@@ -12,6 +12,7 @@ import {
   strictEqual,
   throws
 } from "./utils/assert.ts"
+import { withIgnoredProperties } from "./utils/structFields.ts"
 
 describe("Result", () => {
   describe("Constructors", () => {
@@ -106,12 +107,12 @@ describe("Result", () => {
     })
 
     it("toJSON", () => {
-      deepStrictEqual(Result.succeed(1).toJSON(), { _id: "Result", _tag: "Success", value: 1 })
+      deepStrictEqual(Result.succeed(1).toJSON(), { _id: "Result", _tag: "Success", success: 1 })
       deepStrictEqual(Result.fail("e").toJSON(), { _id: "Result", _tag: "Failure", failure: "e" })
     })
 
     it("inspect", () => {
-      deepStrictEqual(inspect(Result.succeed(1)), inspect({ _id: "Result", _tag: "Success", value: 1 }))
+      deepStrictEqual(inspect(Result.succeed(1)), inspect({ _id: "Result", _tag: "Success", success: 1 }))
       deepStrictEqual(inspect(Result.fail("e")), inspect({ _id: "Result", _tag: "Failure", failure: "e" }))
     })
 
@@ -196,11 +197,12 @@ describe("Result", () => {
   describe("Mapping", () => {
     it("map", () => {
       const f = Result.map(Str.length)
+      const failure = Result.fail("s")
       assertSuccess(pipe(Result.succeed("abc"), f), 3)
-      assertFailure(pipe(Result.fail("s"), f), "s")
+      strictEqual(pipe(failure, f), failure)
       // data-first
       assertSuccess(Result.map(Result.succeed("abc"), Str.length), 3)
-      assertFailure(Result.map(Result.fail("s"), Str.length), "s")
+      strictEqual(Result.map(failure, Str.length), failure)
     })
 
     it("mapBoth", () => {
@@ -229,10 +231,11 @@ describe("Result", () => {
 
     it("mapError", () => {
       const f = Result.mapError((n: number) => n * 2)
-      assertSuccess(pipe(Result.succeed("a"), f), "a")
+      const success = Result.succeed("a")
+      strictEqual(pipe(success, f), success)
       assertFailure(pipe(Result.fail(1), f), 2)
       // data-first
-      assertSuccess(Result.mapError(Result.succeed("a"), (n: number) => n * 2), "a")
+      strictEqual(Result.mapError(success, (n: number) => n * 2), success)
       assertFailure(Result.mapError(Result.fail(1), (n) => n * 2), 2)
     })
 
@@ -377,6 +380,19 @@ describe("Result", () => {
       assertSuccess(Result.andThen(Result.succeed(1), () => 2), 2)
       assertSuccess(Result.andThen(Result.succeed(1), 2), 2)
       assertSuccess(Result.andThen(Result.succeed(1), (a) => a), 1)
+    })
+
+    it("all collects enumerable own symbol fields and propagates their failures", () => {
+      const key = Symbol("key")
+
+      assert.deepStrictEqual(
+        Result.all(withIgnoredProperties({ a: Result.succeed(1), [key]: Result.succeed(2) })),
+        Result.succeed({ a: 1, [key]: 2 })
+      )
+      assert.deepStrictEqual(
+        Result.all(withIgnoredProperties({ a: Result.succeed(1), [key]: Result.fail("failure") })),
+        Result.fail("failure")
+      )
     })
 
     it("all", () => {

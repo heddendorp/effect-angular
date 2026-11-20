@@ -10,14 +10,14 @@
  *
  * @since 4.0.0
  */
-import type * as Types from "effect/Types"
 import type {
   OpenAPISecurityRequirement,
   OpenAPISpecExternalDocs,
   OpenAPISpecLicense,
-  OpenAPISpecMethodName,
   OpenAPISpecServer
-} from "effect/unstable/httpapi/OpenApi"
+} from "effect/http-api/OpenApi"
+import type { HttpMethod } from "effect/http/HttpMethod"
+import type * as Types from "effect/Types"
 
 /**
  * Root OpenAPI metadata preserved for generated client and HttpApi output.
@@ -68,11 +68,13 @@ export interface ParsedOpenApiSecurityScheme {
  * @category models
  * @since 4.0.0
  */
-export interface ParsedOpenApi {
+export interface ParsedOpenApi extends OpenApi<string> {}
+
+interface OpenApi<S> {
   readonly metadata: ParsedOpenApiMetadata
   readonly tags: ReadonlyArray<ParsedOpenApiTag>
   readonly securitySchemes: ReadonlyArray<ParsedOpenApiSecurityScheme>
-  readonly operations: ReadonlyArray<ParsedOperation>
+  readonly operations: ReadonlyArray<Operation<S>>
 }
 
 /**
@@ -132,25 +134,33 @@ export type ParsedOperationMediaTypeEncoding =
  * @category models
  * @since 4.0.0
  */
-export type ParsedOperationMediaTypeSchema =
+export type ParsedOperationMediaTypeSchema = MediaTypeSchema<string>
+
+type MediaTypeSchema<S> =
   | {
     readonly contentType: string
     readonly encoding: ParsedOperationMediaTypeEncoding
-    readonly schema: string
+    readonly schema: S
     readonly effectStream?: undefined
   }
   | {
     readonly contentType: string
     readonly encoding: "text"
-    readonly schema: string
+    readonly schema: S
     readonly effectStream: "sse"
-    readonly errorSchema: string
+    readonly errorSchema: S
   }
   | {
     readonly contentType: string
     readonly encoding: "binary"
     readonly schema?: undefined
     readonly effectStream: "uint8array"
+  }
+  | {
+    readonly contentType: string
+    readonly encoding: "json"
+    readonly schema: S
+    readonly effectStream: "ndjson"
   }
 
 /**
@@ -159,13 +169,15 @@ export type ParsedOperationMediaTypeSchema =
  * @category models
  * @since 4.0.0
  */
-export interface ParsedOperationResponse {
+export interface ParsedOperationResponse extends Response<string> {}
+
+interface Response<S> {
   readonly status: string
   readonly description: string | undefined
   readonly contentTypes: Array<string>
   readonly hasHeaders: boolean
   readonly isEmpty: boolean
-  readonly representable: ReadonlyArray<ParsedOperationMediaTypeSchema>
+  readonly representable: ReadonlyArray<MediaTypeSchema<S>>
 }
 
 /**
@@ -177,16 +189,36 @@ export interface ParsedOperationResponse {
 export type ParsedOperationSecurityRequirement = Readonly<OpenAPISecurityRequirement>
 
 /**
+ * Response state used only by the generated HttpClient renderers.
+ *
+ * @category models
+ * @since 4.0.0
+ */
+export interface ParsedOperationHttpClientResponses extends HttpClientResponses<string> {}
+
+interface HttpClientResponses<S> {
+  readonly successSchemas: ReadonlyMap<string, S>
+  readonly errorSchemas: ReadonlyMap<string, S>
+  readonly voidSuccessStatuses: ReadonlySet<string>
+  readonly voidErrorStatuses: ReadonlySet<string>
+  readonly sseSchema?: S
+  readonly sseSchemaMode: "data" | "event"
+  readonly binarySuccessStatuses: ReadonlySet<string>
+}
+
+/**
  * Normalized operation model shared by all OpenAPI generator backends.
  *
  * @category models
  * @since 4.0.0
  */
-export interface ParsedOperation {
+export interface ParsedOperation extends Operation<string> {}
+
+interface Operation<S> {
   readonly id: string
   readonly operationId: string | undefined
   readonly path: string
-  readonly method: OpenAPISpecMethodName
+  readonly method: Lowercase<HttpMethod>
   readonly tags: ReadonlyArray<string>
   readonly metadata: ParsedOperationMetadata
   readonly parameters: {
@@ -196,33 +228,32 @@ export interface ParsedOperation {
     readonly cookie: ReadonlyArray<ParsedOperationParameter>
   }
   readonly requestBody: ParsedOperationRequestBody | undefined
-  readonly responses: ReadonlyArray<ParsedOperationResponse>
-  readonly defaultResponse: ParsedOperationResponse | undefined
+  readonly responses: ReadonlyArray<Response<S>>
+  readonly defaultResponse: Response<S> | undefined
   readonly effectiveSecurity: ReadonlyArray<ParsedOperationSecurityRequirement>
   readonly description: string | undefined
-  readonly params?: string
+  readonly params?: S
   readonly paramsOptional: boolean
   readonly urlParams: ReadonlyArray<string>
+  /**
+   * Query parameters declared with `style: "form"` and `explode: false`, whose
+   * arrays are sent as one comma-separated value.
+   */
+  readonly commaUrlParams: ReadonlyArray<string>
   readonly headers: ReadonlyArray<string>
   readonly cookies: ReadonlyArray<string>
-  readonly payload?: string
+  readonly payload?: S
   readonly payloadFormData: boolean
   readonly payloadFormUrlEncoded: boolean
-  readonly pathSchema: string | undefined
-  readonly querySchema: string | undefined
+  readonly pathSchema: S | undefined
+  readonly querySchema: S | undefined
   readonly querySchemaOptional: boolean
-  readonly headersSchema: string | undefined
+  readonly headersSchema: S | undefined
   readonly headersSchemaOptional: boolean
-  readonly requestBodyRepresentable: ReadonlyArray<ParsedOperationMediaTypeSchema>
+  readonly requestBodyRepresentable: ReadonlyArray<MediaTypeSchema<S>>
   readonly pathIds: ReadonlyArray<string>
   readonly pathTemplate: string
-  readonly successSchemas: ReadonlyMap<string, string>
-  readonly errorSchemas: ReadonlyMap<string, string>
-  readonly voidSchemas: ReadonlySet<string>
-  // SSE streaming response schema (text/event-stream)
-  readonly sseSchema?: string
-  // Binary stream response (application/octet-stream)
-  readonly binaryResponse: boolean
+  readonly httpClientResponses: HttpClientResponses<S>
 }
 
 /**
@@ -233,7 +264,7 @@ export interface ParsedOperation {
  */
 export const makeDeepMutable = (options: {
   readonly id: string
-  readonly method: OpenAPISpecMethodName
+  readonly method: Lowercase<HttpMethod>
   readonly pathIds: Array<string>
   readonly pathTemplate: string
   readonly description: string | undefined
@@ -259,6 +290,7 @@ export const makeDeepMutable = (options: {
   defaultResponse: undefined,
   effectiveSecurity: [],
   urlParams: [],
+  commaUrlParams: [],
   headers: [],
   cookies: [],
   payloadFormData: false,
@@ -269,9 +301,48 @@ export const makeDeepMutable = (options: {
   headersSchema: undefined,
   headersSchemaOptional: true,
   requestBodyRepresentable: [],
-  successSchemas: new Map(),
-  errorSchemas: new Map(),
-  voidSchemas: new Set(),
-  paramsOptional: true,
-  binaryResponse: false
+  httpClientResponses: {
+    successSchemas: new Map(),
+    errorSchemas: new Map(),
+    voidSuccessStatuses: new Set(),
+    voidErrorStatuses: new Set(),
+    sseSchemaMode: "data",
+    binarySuccessStatuses: new Set()
+  },
+  paramsOptional: true
 })
+
+/** @internal */
+export function mapSchemas<A, B>(parsed: OpenApi<A>, f: (schema: A) => B): OpenApi<B> {
+  const optional = (schema: A | undefined): B | undefined => schema === undefined ? undefined : f(schema)
+  const media = (value: MediaTypeSchema<A>): MediaTypeSchema<B> => {
+    if (value.effectStream === "uint8array") return value
+    if (value.effectStream === "sse") return { ...value, schema: f(value.schema), errorSchema: f(value.errorSchema) }
+    return { ...value, schema: f(value.schema) }
+  }
+  const response = (value: Response<A>): Response<B> => ({ ...value, representable: value.representable.map(media) })
+  return {
+    ...parsed,
+    operations: parsed.operations.map((operation): Operation<B> => {
+      const { params, payload, httpClientResponses, ...rest } = operation
+      const { sseSchema, ...responses } = httpClientResponses
+      return {
+        ...rest,
+        ...(params === undefined ? {} : { params: f(params) }),
+        ...(payload === undefined ? {} : { payload: f(payload) }),
+        pathSchema: optional(operation.pathSchema),
+        querySchema: optional(operation.querySchema),
+        headersSchema: optional(operation.headersSchema),
+        requestBodyRepresentable: operation.requestBodyRepresentable.map(media),
+        responses: operation.responses.map(response),
+        defaultResponse: operation.defaultResponse === undefined ? undefined : response(operation.defaultResponse),
+        httpClientResponses: {
+          ...responses,
+          successSchemas: new Map(Array.from(responses.successSchemas, ([status, schema]) => [status, f(schema)])),
+          errorSchemas: new Map(Array.from(responses.errorSchemas, ([status, schema]) => [status, f(schema)])),
+          ...(sseSchema === undefined ? {} : { sseSchema: f(sseSchema) })
+        }
+      }
+    })
+  }
+}

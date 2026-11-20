@@ -1,9 +1,10 @@
-import type * as Response from "effect/unstable/ai/Response"
+import type * as Response from "effect/ai/Response"
 
 const finishReasonMap: Record<string, Response.FinishReason> = {
   content_filter: "content-filter",
   function_call: "tool-calls",
   length: "length",
+  max_output_tokens: "length",
   stop: "stop",
   tool_calls: "tool-calls"
 }
@@ -19,7 +20,7 @@ export const resolveFinishReason = (
   if (finishReason == null) {
     return hasToolCalls ? "tool-calls" : "stop"
   }
-  const reason = finishReasonMap[finishReason]
+  const reason = Object.hasOwn(finishReasonMap, finishReason) ? finishReasonMap[finishReason] : undefined
   if (reason == null) {
     return hasToolCalls ? "tool-calls" : "unknown"
   }

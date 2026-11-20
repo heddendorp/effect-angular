@@ -10,17 +10,26 @@
  *
  * @since 4.0.0
  */
+import * as Codegen from "effect/Codegen"
 import * as Context from "effect/Context"
 import * as Effect from "effect/Effect"
+import type {
+  OpenAPISecurityScheme,
+  OpenAPISpec,
+  OpenAPISpecOperation,
+  OpenAPISpecPathItem
+} from "effect/http-api/OpenApi"
+import type { HttpMethod } from "effect/http/HttpMethod"
+import * as JsonPointer from "effect/JsonPointer"
 import type * as JsonSchema from "effect/JsonSchema"
 import * as Layer from "effect/Layer"
 import * as Predicate from "effect/Predicate"
-import * as String from "effect/String"
-import type { OpenAPISecurityScheme, OpenAPISpec, OpenAPISpecMethodName } from "effect/unstable/httpapi/OpenApi"
+import * as Rec from "effect/Record"
 import SwaggerToOpenApi from "swagger2openapi"
 import * as HttpApiTransformer from "./HttpApiTransformer.ts"
+import * as HttpClientGenerator from "./internal/httpClient.ts"
+import * as InternalJsonPointer from "./internal/jsonPointer.ts"
 import * as JsonSchemaGenerator from "./JsonSchemaGenerator.ts"
-import * as OpenApiTransformer from "./OpenApiTransformer.ts"
 import * as ParsedOperation from "./ParsedOperation.ts"
 import * as Utils from "./Utils.ts"
 
@@ -38,6 +47,20 @@ export class OpenApiGenerator extends Context.Service<
 
 /**
  * Output targets supported by the OpenAPI generator.
+ *
+ * **Details**
+ *
+ * The `httpclient` and `httpclient-type-only` formats support non-security
+ * cookie parameters with primitive schemas, which generated clients send in
+ * the request `Cookie` header. Cookie parameters with structured schemas, such
+ * as objects or arrays, are dropped with a `cookie-parameter-dropped` warning.
+ * The `httpapi` format drops all non-security cookie parameters.
+ *
+ * The `Cookie` header is set before the request reaches the supplied
+ * `HttpClient`, so it is subject to that client's request transformations.
+ * Browsers manage the `Cookie` header themselves and ignore explicit values,
+ * and `HttpClient.withCookiesRef` replaces the header whenever its cookie jar
+ * is non-empty.
  *
  * @category models
  * @since 4.0.0
@@ -59,6 +82,7 @@ export type OpenApiGeneratorWarningCode =
   | "default-response-remapped"
   | "security-and-downgraded"
   | "no-body-method-request-body-skipped"
+  | "streaming-request-body-skipped"
   | "naming-collision"
 
 /**
@@ -72,8 +96,44 @@ export interface OpenApiGeneratorWarning {
   readonly code: OpenApiGeneratorWarningCode
   readonly message: string
   readonly path?: string | undefined
-  readonly method?: OpenAPISpecMethodName | undefined
+  readonly method?: Lowercase<HttpMethod> | undefined
   readonly operationId?: string | undefined
+}
+
+/**
+ * Formats a generation warning as a single human-readable line.
+ *
+ * **Details**
+ *
+ * The line starts with `WARNING [code]`, followed by the HTTP method, path and
+ * operation id when the warning carries them, then the warning message.
+ *
+ * **Example** (Formatting an operation warning)
+ *
+ * ```ts import.meta.vitest
+ * import { formatWarning } from "@effect/openapi-generator/OpenApiGenerator"
+ *
+ * formatWarning({
+ *   code: "cookie-parameter-dropped",
+ *   message: "Cookie parameter was dropped.",
+ *   path: "/items",
+ *   method: "get",
+ *   operationId: "listItems"
+ * }) // => "WARNING [cookie-parameter-dropped] GET /items (listItems): Cookie parameter was dropped."
+ * ```
+ *
+ * @category formatting
+ * @since 4.0.0
+ */
+export const formatWarning = (warning: OpenApiGeneratorWarning): string => {
+  const context = [
+    warning.method?.toUpperCase(),
+    warning.path,
+    warning.operationId ? `(${warning.operationId})` : undefined
+  ].filter((value): value is string => value !== undefined)
+  return context.length > 0
+    ? `WARNING [${warning.code}] ${context.join(" ")}: ${warning.message}`
+    : `WARNING [${warning.code}] ${warning.message}`
 }
 
 /**
@@ -96,17 +156,32 @@ export interface OpenApiGenerateOptions {
    */
   readonly onEnter?: ((js: JsonSchema.JsonSchema) => JsonSchema.JsonSchema) | undefined
   /**
+   * Closes objects with declared properties when every contributing object schema omits `additionalProperties`.
+   * Closing happens after composition is normalized, preserving inherited fields.
+   * Explicit additional-property declarations and free-form objects are preserved.
+   *
+   * @stability experimental
+   */
+  readonly closeObjects?: boolean | undefined
+  /**
+   * Component schemas to generate even when no operation references them.
+   */
+  readonly includeSchemas?: ReadonlyArray<string> | undefined
+  /**
    * Callback to receive non-fatal generation warnings.
    */
   readonly onWarning?: ((warning: OpenApiGeneratorWarning) => void) | undefined
 }
 
 interface HttpApiMultipartSchemaRefs {
+  readonly kind: "httpapi"
   readonly singleFile: string
   readonly files: string
 }
 
-const methodNames: ReadonlyArray<OpenAPISpecMethodName> = [
+type MultipartSchemaRefs = HttpApiMultipartSchemaRefs | { readonly kind: "client"; readonly singleFile: string }
+
+const methodNames: ReadonlyArray<Lowercase<HttpMethod>> = [
   "get",
   "put",
   "post",
@@ -114,7 +189,8 @@ const methodNames: ReadonlyArray<OpenAPISpecMethodName> = [
   "options",
   "head",
   "patch",
-  "trace"
+  "trace",
+  "query"
 ]
 
 /**
@@ -127,16 +203,14 @@ export const make = Effect.gen(function*() {
   const generate = Effect.fn(
     function*(spec: OpenAPISpec, options: OpenApiGenerateOptions) {
       const generator = JsonSchemaGenerator.make()
-      const openApiTransformer = yield* OpenApiTransformer.OpenApiTransformer
       const emitWarning = makeWarningEmitter(options)
 
-      // If we receive a Swagger 2.0 spec, convert it to an OpenApi 3.0 spec
       if (isSwaggerSpec(spec)) {
         spec = yield* convertSwaggerSpec(spec)
       }
 
       function resolveRef(ref: string) {
-        const parts = ref.split("/").slice(1)
+        const parts = ref.split("/").slice(1).map(JsonPointer.unescapeToken)
         let current: any = spec
         for (const part of parts) {
           current = current[part]
@@ -144,58 +218,65 @@ export const make = Effect.gen(function*() {
         return current
       }
 
-      const multipartSchemaRefs = options.format === "httpapi"
-        ? makeHttpApiMultipartSchemaRefs(spec.components?.schemas ?? {})
-        : undefined
+      const multipart = makeMultipartSchemas(spec, options.format, resolveRef)
 
-      const parsed = parseOpenApi(spec, generator, resolveRef, options.format, emitWarning, multipartSchemaRefs)
+      const parsed = parseOpenApi(spec, generator, resolveRef, options.format, emitWarning, multipart.transform)
+      multipart.finish(generator.schemas)
 
       // TODO: make a CLI option ?
       const importName = "Schema"
       const source = getDialect(spec)
-      const generation = options.format === "httpapi"
-        ? generator.generateHttpApi(
-          source,
-          withHttpApiMultipartSchemas(spec.components?.schemas ?? {}, multipartSchemaRefs),
-          {
-            onEnter: options.onEnter,
-            multipartSchemaRefs
-          }
-        )
-        : generator.generate(
-          source,
-          spec.components?.schemas ?? {},
-          options.format === "httpclient-type-only",
-          {
-            onEnter: options.onEnter
-          }
-        )
-
-      if (options.format === "httpapi") {
-        const needsMultipartImport = generation.includes("Multipart.")
-        return String.stripMargin(
-          `|${HttpApiTransformer.imports(importName, { multipart: needsMultipartImport })}
-           |${generation}
-           |${HttpApiTransformer.toImplementation(importName, options.name, parsed)}`
-        )
+      const schemaOptions = {
+        onEnter: options.onEnter,
+        closeObjects: options.closeObjects,
+        multipartSchemaRefs: multipart.refs,
+        binarySchemas: new Set(parsed.operations.flatMap((operation) =>
+          [
+            ...operation.requestBodyRepresentable,
+            ...operation.responses.flatMap((response) => response.representable)
+          ].flatMap((media) => media.encoding === "binary" && media.effectStream === undefined ? [media.schema] : [])
+        )),
+        includeSchemas: options.includeSchemas
       }
-
-      return String.stripMargin(
-        `|${openApiTransformer.imports(importName, parsed)}
-         |${generation}
-         |${openApiTransformer.toImplementation(importName, options.name, parsed)}
-         |
-         |${openApiTransformer.toTypes(importName, options.name, parsed)}`
+      const module = new Codegen.Module(
+        options.format === "httpapi" ? ["ReadonlyArray"] : [
+          "Array",
+          "Object",
+          "String",
+          "TypeError",
+          "JSON",
+          "Uint8Array",
+          "ReadonlyArray",
+          "Record",
+          "Parameters",
+          "encodeURIComponent"
+        ]
       )
-    },
-    (effect, _, options) =>
-      Effect.provideServiceEffect(
-        effect,
-        OpenApiTransformer.OpenApiTransformer,
-        options.format === "httpclient-type-only"
-          ? Effect.sync(OpenApiTransformer.makeTransformerTs)
-          : Effect.sync(OpenApiTransformer.makeTransformerSchema)
+      const registration = options.format === "httpapi"
+        ? HttpApiTransformer.registerModule(module, importName, options.name, parsed)
+        : HttpClientGenerator.registerModule(
+          module,
+          importName,
+          options.name,
+          parsed,
+          options.format === "httpclient-type-only"
+        )
+      const schemas = JsonSchemaGenerator.compile(
+        module,
+        generator.schemas,
+        source,
+        multipart.definitions,
+        options.format === "httpclient-type-only",
+        schemaOptions
       )
+      const bound = ParsedOperation.mapSchemas(parsed, (name) => {
+        const binding = schemas.get(name)
+        if (binding === undefined) throw new Error(`Missing schema ${name}`)
+        return binding
+      })
+      module.add(Codegen.deferred((render) => render(registration(ParsedOperation.mapSchemas(bound, render)))))
+      return module.print()
+    }
   )
 
   return { generate } as const
@@ -213,11 +294,13 @@ const parseOpenApi = (
   resolveRef: (ref: string) => unknown,
   format: OpenApiGeneratorFormat,
   emitWarning: WarningEmitter,
-  multipartSchemaRefs: HttpApiMultipartSchemaRefs | undefined
+  transformMultipart: (schema: JsonSchema.JsonSchema) => JsonSchema.JsonSchema
 ): ParsedOperation.ParsedOpenApi => {
   const operations: Array<ParsedOperation.ParsedOperation> = []
   const reservedSchemaNames = new Set<string>(Object.keys(spec.components?.schemas ?? {}))
   const isHttpApi = format === "httpapi"
+  const dialect = getDialect(spec)
+  const preserveResponseDescription = isHttpApi && dialect === "openapi-3.1"
   const securitySchemes = isHttpApi ? parseSecuritySchemes(spec, resolveRef) : []
 
   const addSchema = (
@@ -241,29 +324,38 @@ const parseOpenApi = (
     return generator.addSchema(candidate, schema)
   }
 
-  for (const [path, methods] of Object.entries(spec.paths)) {
+  for (const [path, entry] of Object.entries(spec.paths)) {
+    if (!path.startsWith("/")) continue
+    const pathItem = resolvePathItem(spec, entry)
     for (const method of methodNames) {
-      const operation = methods[method]
-
+      const operation = pathItem[method]
       if (Predicate.isUndefined(operation)) {
         continue
       }
-
       const id = operation.operationId
         ? Utils.camelize(operation.operationId)
         : `${method.toUpperCase()}${path}`
 
-      const description = Utils.nonEmptyString(operation.description) ?? Utils.nonEmptyString(operation.summary)
+      const summary = Utils.nonEmptyString(operation.summary)
+      const description = Utils.nonEmptyString(operation.description)
 
-      const { pathIds, pathTemplate } = processPath(path)
+      const parameters = resolveOperationParameters(
+        Array.isArray(pathItem.parameters) ? pathItem.parameters : undefined,
+        Array.isArray(operation.parameters) ? operation.parameters : undefined,
+        resolveRef
+      )
+      const { pathIds, pathSchema, pathTemplate } = processPath(path, isHttpApi ? [] : parameters)
 
       const op = ParsedOperation.makeDeepMutable({
         id,
         method,
-        description,
+        description: summary && description && summary !== description
+          ? `${summary}\n\n${description}`
+          : summary ?? description,
         pathIds,
         pathTemplate
       })
+      const httpClientResponses = op.httpClientResponses
       op.path = path
       op.operationId = Utils.nonEmptyString(operation.operationId)
       op.tags = [...(operation.tags ?? [])]
@@ -276,8 +368,8 @@ const parseOpenApi = (
         })
       }
       op.metadata = {
-        summary: Utils.nonEmptyString(operation.summary),
-        description: Utils.nonEmptyString(operation.description),
+        summary,
+        description,
         deprecated: operation.deprecated === true,
         externalDocs: operation.externalDocs
       }
@@ -288,14 +380,7 @@ const parseOpenApi = (
 
       const schemaId = Utils.identifier(operation.operationId ?? path)
 
-      const pathParameters = Predicate.isObject(methods) && Array.isArray((methods as any).parameters)
-        ? (methods as any).parameters as ReadonlyArray<unknown>
-        : undefined
-      const parameters = resolveOperationParameters(
-        pathParameters,
-        Array.isArray(operation.parameters) ? operation.parameters : undefined,
-        resolveRef
-      )
+      const droppedCookies = new Set<OpenApiParameter>()
       for (const parameter of parameters) {
         const parsedParameter: ParsedOperation.ParsedOperationParameter = {
           name: parameter.name,
@@ -311,6 +396,9 @@ const parseOpenApi = (
           }
           case "query": {
             op.parameters.query.push(parsedParameter)
+            if ((parameter.style ?? "form") === "form" && parameter.explode === false) {
+              op.commaUrlParams.push(parameter.name)
+            }
             break
           }
           case "header": {
@@ -319,11 +407,18 @@ const parseOpenApi = (
           }
           case "cookie": {
             op.parameters.cookie.push(parsedParameter)
-            warnForOperation(emitWarning, op, {
-              code: "cookie-parameter-dropped",
-              message:
-                `Cookie parameter "${parameter.name}" was dropped because non-security cookie parameters are not supported.`
-            })
+            const dropReason = isHttpApi
+              ? "non-security cookie parameters are not supported"
+              : isPrimitiveSchema(parameter.schema, resolveRef)
+              ? undefined
+              : "only primitive cookie parameter schemas are supported"
+            if (dropReason !== undefined) {
+              droppedCookies.add(parameter)
+              warnForOperation(emitWarning, op, {
+                code: "cookie-parameter-dropped",
+                message: `Cookie parameter "${parameter.name}" was dropped because ${dropReason}.`
+              })
+            }
             break
           }
         }
@@ -338,17 +433,20 @@ const parseOpenApi = (
         continue
       }
 
-      const resolvedResponses = Object.entries(operation.responses ?? {}).map(
-        ([status, response]) => [status, resolveReference(response, resolveRef)] as const
-      )
-      const hasExplicitSuccessResponse = resolvedResponses.some(([status]) => {
-        if (!/^\d{3}$/.test(status)) {
-          return false
-        }
-        return Number(status) < 400
-      })
+      const responses = Object.entries(operation.responses ?? {}).filter(([status]) => isResponseStatus(status))
+      const defaultStatus = responses.some(([status]) => Number(status) < 400) ? "500" : "200"
+      const resolvedResponses = responses.map(([status, response]) => ({
+        status,
+        parsedStatus: isHttpApi && status === "default" ? defaultStatus : status,
+        response: resolveReference(response, resolveRef, preserveResponseDescription)
+      }))
 
-      if (isHttpApi && hasUnsupportedSuccessfulSseResponse(resolvedResponses, hasExplicitSuccessResponse)) {
+      if (
+        isHttpApi &&
+        resolvedResponses.some(({ parsedStatus, response }) =>
+          Number(parsedStatus) < 400 && hasUnsupportedSseResponse(response)
+        )
+      ) {
         warnForOperation(emitWarning, op, {
           code: "sse-operation-skipped",
           message:
@@ -357,7 +455,9 @@ const parseOpenApi = (
         continue
       }
 
-      const validParameters = parameters.filter((parameter) => parameter.in !== "path" && parameter.in !== "cookie")
+      const validParameters = parameters.filter((parameter) =>
+        parameter.in !== "path" && !droppedCookies.has(parameter)
+      )
 
       const combinedParameterSchema = buildParameterSchema(validParameters, (parameter, added) => {
         if (parameter.in === "query") {
@@ -391,6 +491,8 @@ const parseOpenApi = (
           op.headersSchema = addSchema(`${schemaId}Headers`, headerParameterSchema.schema, op)
           op.headersSchemaOptional = headerParameterSchema.optional
         }
+      } else if (pathSchema !== undefined) {
+        op.pathSchema = addSchema(`${schemaId}PathParams`, pathSchema, op)
       }
 
       if (Predicate.isNotUndefined(requestBody) && Predicate.isObject(requestBody)) {
@@ -414,10 +516,13 @@ const parseOpenApi = (
           requestSchemaNames.set("application/json", op.payload)
         }
 
-        if (Predicate.isNotUndefined(content["multipart/form-data"]?.schema)) {
+        if (
+          Predicate.isNotUndefined(content["multipart/form-data"]?.schema) &&
+          !(isHttpApi && getEffectStreamEncoding(content["multipart/form-data"]) === "ndjson")
+        ) {
           op.payload = addSchema(
             `${schemaId}RequestFormData`,
-            transformMultipartSchema(content["multipart/form-data"].schema, multipartSchemaRefs, resolveRef),
+            transformMultipart(content["multipart/form-data"].schema),
             op
           )
           op.payloadFormData = true
@@ -425,19 +530,58 @@ const parseOpenApi = (
         }
 
         if (Predicate.isNotUndefined(content["application/x-www-form-urlencoded"]?.schema)) {
-          op.payload = addSchema(
+          const schemaName = addSchema(
             `${schemaId}RequestFormUrlEncoded`,
             content["application/x-www-form-urlencoded"].schema,
             op
           )
-          op.payloadFormUrlEncoded = true
-          requestSchemaNames.set("application/x-www-form-urlencoded", op.payload)
+          requestSchemaNames.set("application/x-www-form-urlencoded", schemaName)
+          if (!op.payloadFormData) {
+            op.payload = schemaName
+            op.payloadFormUrlEncoded = true
+          }
         }
 
         if (isHttpApi) {
           const representableRequestBody: Array<ParsedOperation.ParsedOperationMediaTypeSchema> = []
           for (const [contentType, mediaType] of Object.entries(content)) {
-            if (!Predicate.isObject(mediaType) || Predicate.isUndefined(mediaType.schema)) {
+            if (!Predicate.isObject(mediaType)) {
+              continue
+            }
+            const streamEncoding = getEffectStreamEncoding(mediaType)
+            if (
+              streamEncoding !== "ndjson" &&
+              unsupportedStreamingRequestMediaTypes.has(normalizeMediaType(contentType))
+            ) {
+              warnForOperation(emitWarning, op, {
+                code: "streaming-request-body-skipped",
+                message: `Request body media type ${contentType} was skipped because HttpApi cannot stream it.`
+              })
+              continue
+            }
+            if (streamEncoding === "uint8array") {
+              representableRequestBody.push({
+                contentType,
+                encoding: "binary",
+                effectStream: "uint8array"
+              })
+              continue
+            }
+            const ndjsonSchema = getNdjsonElementSchema(contentType, mediaType)
+            if (Predicate.isNotUndefined(ndjsonSchema)) {
+              representableRequestBody.push({
+                contentType,
+                encoding: "json",
+                effectStream: "ndjson",
+                schema: requestSchemaNames.get(contentType) ?? addSchema(
+                  `${schemaId}Request${mediaTypeToSuffix(contentType)}`,
+                  ndjsonSchema,
+                  op
+                )
+              })
+              continue
+            }
+            if (Predicate.isUndefined(mediaType.schema)) {
               continue
             }
             const encoding = getRequestMediaTypeEncoding(contentType)
@@ -447,7 +591,7 @@ const parseOpenApi = (
             let schemaName = requestSchemaNames.get(contentType)
             if (schemaName === undefined) {
               const schema = encoding === "multipart"
-                ? transformMultipartSchema(mediaType.schema as JsonSchema.JsonSchema, multipartSchemaRefs, resolveRef)
+                ? transformMultipart(mediaType.schema as JsonSchema.JsonSchema)
                 : mediaType.schema as JsonSchema.JsonSchema
               schemaName = addSchema(
                 `${schemaId}Request${mediaTypeToSuffix(contentType)}`,
@@ -467,19 +611,20 @@ const parseOpenApi = (
       }
 
       let defaultSchema: string | undefined
-      for (const [status, response] of resolvedResponses) {
+      for (const { parsedStatus, response, status } of resolvedResponses) {
         if (!Predicate.isObject(response)) {
           continue
         }
 
-        const parsedStatus = isHttpApi
-          ? remapDefaultResponseStatusForHttpApi(status, hasExplicitSuccessResponse)
-          : status
-        if (isHttpApi && status === "default") {
+        if (status !== parsedStatus) {
+          const hasExplicitResponse = Object.hasOwn(operation.responses, parsedStatus)
           warnForOperation(emitWarning, op, {
             code: "default-response-remapped",
-            message: `Default response was remapped to status ${parsedStatus} for HttpApi generation.`
+            message: hasExplicitResponse
+              ? `Default response was skipped because its remapped status ${parsedStatus} is explicitly defined.`
+              : `Default response was remapped to status ${parsedStatus} for HttpApi generation.`
           })
+          if (hasExplicitResponse) continue
         }
 
         const content = Predicate.isObject(response.content)
@@ -494,29 +639,54 @@ const parseOpenApi = (
         const representable: Array<ParsedOperation.ParsedOperationMediaTypeSchema> = []
 
         let jsonSchemaName: string | undefined
-        const jsonResponseSchema = content?.["application/json"]?.schema
-        if (Predicate.isNotUndefined(jsonResponseSchema)) {
-          jsonSchemaName = addSchema(`${schemaId}${status}`, jsonResponseSchema, op)
-          if (isHttpApi) {
+        let jsonResponseContentType: string | undefined
+        if (isHttpApi) {
+          const jsonResponseEntries = Object.entries(content ?? {}).filter(([contentType, mediaType]) =>
+            isJsonMediaType(normalizeMediaType(contentType)) &&
+            Predicate.isObject(mediaType) &&
+            Predicate.isNotUndefined(mediaType.schema) &&
+            !(isSuccessStatus(parsedStatus) && getEffectStreamEncoding(mediaType) === "ndjson")
+          )
+          const jsonResponseEntry = jsonResponseEntries.find(([contentType]) =>
+            normalizeMediaType(contentType) === "application/json"
+          ) ?? jsonResponseEntries[0]
+          if (Predicate.isNotUndefined(jsonResponseEntry)) {
+            const [contentType, mediaType] = jsonResponseEntry
+            jsonResponseContentType = contentType
+            jsonSchemaName = addSchema(`${schemaId}${status}`, mediaType.schema as JsonSchema.JsonSchema, op)
             representable.push({
-              contentType: "application/json",
+              contentType,
               encoding: "json",
               schema: jsonSchemaName
             })
+          }
+        } else {
+          const jsonSchemas = Object.entries(content ?? {}).flatMap(([contentType, mediaType]) =>
+            isJsonMediaType(normalizeMediaType(contentType)) &&
+              Predicate.isObject(mediaType) &&
+              Predicate.isNotUndefined(mediaType.schema)
+              ? [mediaType.schema as JsonSchema.JsonSchema]
+              : []
+          )
+          if (jsonSchemas.length > 0) {
+            jsonSchemaName = addSchema(
+              `${schemaId}${status}`,
+              jsonSchemas.length === 1 ? jsonSchemas[0] : { anyOf: jsonSchemas },
+              op
+            )
           }
         }
 
         if (isHttpApi) {
           for (const [contentType, mediaType] of Object.entries(content ?? {})) {
-            if (contentType === "application/json") {
+            if (contentType === jsonResponseContentType) {
               continue
             }
             if (!Predicate.isObject(mediaType)) {
               continue
             }
 
-            const statusMajorNumber = Number(parsedStatus[0])
-            const streamEncoding = !Number.isNaN(statusMajorNumber) && statusMajorNumber < 4
+            const streamEncoding = isSuccessStatus(parsedStatus)
               ? getEffectStreamEncoding(mediaType)
               : undefined
             if (streamEncoding === "uint8array") {
@@ -524,6 +694,22 @@ const parseOpenApi = (
                 contentType,
                 encoding: "binary",
                 effectStream: "uint8array"
+              })
+              continue
+            }
+            const ndjsonSchema = isSuccessStatus(parsedStatus)
+              ? getNdjsonElementSchema(contentType, mediaType)
+              : undefined
+            if (Predicate.isNotUndefined(ndjsonSchema)) {
+              representable.push({
+                contentType,
+                encoding: "json",
+                effectStream: "ndjson",
+                schema: addSchema(
+                  `${schemaId}${status}${mediaTypeToSuffix(contentType)}`,
+                  ndjsonSchema,
+                  op
+                )
               })
               continue
             }
@@ -538,7 +724,7 @@ const parseOpenApi = (
                 effectStream: "sse",
                 schema: addSchema(
                   `${schemaId}${status}Sse`,
-                  mediaType.schema as JsonSchema.JsonSchema,
+                  normalizeSseEventSchema(mediaType.schema as JsonSchema.JsonSchema, resolveRef, dialect),
                   op
                 ),
                 errorSchema: addSchema(
@@ -573,7 +759,7 @@ const parseOpenApi = (
         const isEmptyResponse = Predicate.isUndefined(content) || Object.keys(content).length === 0
         const parsedResponse = {
           status: parsedStatus,
-          description: Utils.nonEmptyString(response.description),
+          description: typeof response.description === "string" ? response.description : undefined,
           contentTypes: Predicate.isNotUndefined(content) ? Object.keys(content) : [],
           hasHeaders: Predicate.isNotUndefined(response.headers),
           isEmpty: isEmptyResponse,
@@ -584,50 +770,67 @@ const parseOpenApi = (
           op.defaultResponse = parsedResponse
         }
 
+        const normalizedStatus = parsedStatus.toLowerCase()
+        const hasBinaryResponse = Object.entries(content ?? {}).some(([contentType, mediaType]) =>
+          Predicate.isObject(mediaType) &&
+          (isBinaryMediaType(normalizeMediaType(contentType)) || isBinarySchema(mediaType.schema))
+        )
+        if (hasBinaryResponse && isSuccessStatus(parsedStatus)) {
+          httpClientResponses.binarySuccessStatuses.add(normalizedStatus)
+        }
+
         if (Predicate.isNotUndefined(jsonSchemaName)) {
-          const schemaName = jsonSchemaName
-
           if (status === "default" && !isHttpApi) {
-            defaultSchema = schemaName
+            defaultSchema = jsonSchemaName
             continue
           }
 
-          const statusLower = parsedStatus.toLowerCase()
-          const statusMajorNumber = Number(parsedStatus[0])
-          if (Number.isNaN(statusMajorNumber)) {
+          if (Number.isNaN(Number(parsedStatus[0]))) {
             continue
           }
-          if (statusMajorNumber < 4) {
-            op.successSchemas.set(statusLower, schemaName)
+          if (isSuccessStatus(parsedStatus)) {
+            if (!httpClientResponses.binarySuccessStatuses.has(normalizedStatus)) {
+              httpClientResponses.successSchemas.set(normalizedStatus, jsonSchemaName)
+            }
           } else {
-            op.errorSchemas.set(statusLower, schemaName)
+            httpClientResponses.errorSchemas.set(normalizedStatus, jsonSchemaName)
           }
         }
 
-        const sseResponseSchema = content?.["text/event-stream"]?.schema
-        if (!isHttpApi && Predicate.isUndefined(op.sseSchema) && Predicate.isNotUndefined(sseResponseSchema)) {
-          const statusMajorNumber = Number(parsedStatus[0])
-          if (!Number.isNaN(statusMajorNumber) && statusMajorNumber < 4) {
-            op.sseSchema = addSchema(`${schemaId}${status}Sse`, sseResponseSchema, op)
-          }
+        const sseMediaType = content?.["text/event-stream"]
+        const sseResponseSchema = sseMediaType?.schema
+        if (
+          !isHttpApi && Predicate.isUndefined(httpClientResponses.sseSchema) &&
+          Predicate.isNotUndefined(sseResponseSchema) &&
+          isSuccessStatus(parsedStatus)
+        ) {
+          const effectStream = sseMediaType["x-effect-stream"]
+          httpClientResponses.sseSchemaMode = getEffectStreamEncoding(sseMediaType) === "sse" ? "event" : "data"
+          httpClientResponses.sseSchema = addSchema(
+            `${schemaId}${status}Sse`,
+            httpClientResponses.sseSchemaMode === "event"
+              ? makeSseEventSchema(
+                normalizeSseEventSchema(sseResponseSchema, resolveRef, dialect),
+                effectStream?.encoding === "sse" ? effectStream.failureEvent : undefined
+              )
+              : sseResponseSchema,
+            op
+          )
         }
 
-        if (Predicate.isNotUndefined(content?.["application/octet-stream"])) {
-          const statusMajorNumber = Number(parsedStatus[0])
-          if (!Number.isNaN(statusMajorNumber) && statusMajorNumber < 4) {
-            op.binaryResponse = true
-          }
-        }
-
-        if (isEmptyResponse) {
-          if (parsedStatus !== "default") {
-            op.voidSchemas.add(parsedStatus.toLowerCase())
+        if (isEmptyResponse && parsedStatus !== "default") {
+          if (isSuccessStatus(normalizedStatus)) {
+            httpClientResponses.voidSuccessStatuses.add(normalizedStatus)
+          } else {
+            httpClientResponses.voidErrorStatuses.add(normalizedStatus)
           }
         }
       }
 
-      if (!isHttpApi && op.successSchemas.size === 0 && Predicate.isNotUndefined(defaultSchema)) {
-        op.successSchemas.set("2xx", defaultSchema)
+      if (
+        !isHttpApi && httpClientResponses.successSchemas.size === 0 && Predicate.isNotUndefined(defaultSchema)
+      ) {
+        httpClientResponses.successSchemas.set("2xx", defaultSchema)
         warnForOperation(emitWarning, op, {
           code: "default-response-remapped",
           message: "Default response was remapped to 2xx for the current HttpClient outputs."
@@ -663,6 +866,8 @@ interface OpenApiParameter {
   readonly required: boolean
   readonly schema: {}
   readonly description?: string | undefined
+  readonly style?: string | undefined
+  readonly explode?: boolean | undefined
 }
 
 const isOpenApiParameter = (parameter: unknown): parameter is OpenApiParameter => {
@@ -673,6 +878,31 @@ const isOpenApiParameter = (parameter: unknown): parameter is OpenApiParameter =
     typeof parameter.name === "string" &&
     (parameter.in === "path" || parameter.in === "query" || parameter.in === "header" || parameter.in === "cookie")
   )
+}
+
+type PathItem = OpenAPISpecPathItem & Partial<Record<Lowercase<HttpMethod>, OpenAPISpecOperation>>
+
+const normalizeQuery = (item: PathItem): PathItem => {
+  const query = item["x-oai-additionalOperations"]?.QUERY
+  return item.query == null && query !== undefined ? { ...item, query } : item
+}
+
+const resolvePathItem = (spec: OpenAPISpec, entry: OpenAPISpecPathItem): PathItem => {
+  const item: PathItem = {}
+  const seen = new Set<string>()
+  let current: unknown = entry
+  while (Predicate.isObject(current)) {
+    // Fields closer to the route take precedence over inherited fields.
+    for (const [key, value] of Object.entries(normalizeQuery(current as PathItem))) {
+      if (!Object.hasOwn(item, key)) Rec.assignProperty(item, key, value)
+    }
+    const ref = current.$ref
+    if (typeof ref !== "string" || seen.has(ref)) break
+    seen.add(ref)
+    const tokens = JsonPointer.parseUriFragment(ref)
+    current = tokens?.length ? InternalJsonPointer.lookup(spec, tokens) : undefined
+  }
+  return item
 }
 
 const resolveOperationParameters = (
@@ -744,14 +974,14 @@ const buildParameterSchema = <
 
       for (const [name, propertySchema] of Object.entries(paramSchema.properties)) {
         const adjustedName = `${parameter.name}[${name}]`
-        schema.properties[adjustedName] = propertySchema as JsonSchema.JsonSchema
+        Rec.assignProperty(schema.properties, adjustedName, propertySchema as JsonSchema.JsonSchema)
         if (required.includes(name)) {
           schema.required.push(adjustedName)
         }
         added.push(adjustedName)
       }
     } else {
-      schema.properties[parameter.name] = parameter.schema as JsonSchema.JsonSchema
+      Rec.assignProperty(schema.properties, parameter.name, parameter.schema as JsonSchema.JsonSchema)
       if (parameter.required) {
         schema.required.push(parameter.name)
       }
@@ -785,7 +1015,12 @@ const mediaTypeToSuffix = (contentType: string): string => {
   return suffix.length > 0 ? suffix : "Body"
 }
 
-const makeHttpApiMultipartSchemaRefs = (definitions: JsonSchema.Definitions): HttpApiMultipartSchemaRefs => {
+const makeMultipartSchemas = (
+  spec: OpenAPISpec,
+  format: OpenApiGeneratorFormat,
+  resolveRef: (ref: string) => unknown
+) => {
+  const definitions = spec.components?.schemas ?? {}
   const names = new Set(Object.keys(definitions))
   const allocate = (base: string): string => {
     let candidate = base
@@ -797,106 +1032,169 @@ const makeHttpApiMultipartSchemaRefs = (definitions: JsonSchema.Definitions): Ht
     names.add(candidate)
     return candidate
   }
-  return {
-    singleFile: allocate("__HttpApiMultipartSingleFile"),
-    files: allocate("__HttpApiMultipartFiles")
+  const output = { ...definitions }
+  const refs: MultipartSchemaRefs = format === "httpapi"
+    ? {
+      kind: "httpapi",
+      singleFile: allocate("__HttpApiMultipartSingleFile"),
+      files: allocate("__HttpApiMultipartFiles")
+    }
+    : { kind: "client", singleFile: allocate("__ClientMultipartFile") }
+  const singleFileRef = toDefinitionRef(refs.singleFile)
+  const filesRef = refs.kind === "httpapi" ? toDefinitionRef(refs.files) : undefined
+  Rec.assignProperty(output, refs.singleFile, { type: "string", format: "binary" })
+  if (refs.kind === "httpapi") {
+    Rec.assignProperty(output, refs.files, { type: "array", items: { $ref: singleFileRef } })
   }
+
+  const binaryComponents = new Map<string, boolean>()
+  const copies = new Map<string, string>()
+  const inlining = new Set<string>()
+  // Components reachable from a schema that is not a multipart body, filled in by `finish`.
+  let shared: ReadonlySet<string> = new Set()
+
+  const hasBinary = (value: unknown, seen: Set<string>): boolean => {
+    if (Array.isArray(value)) return value.some((item) => hasBinary(item, seen))
+    if (!Predicate.isObject(value)) return false
+    if (isMultipartBinaryFile(value)) return true
+    if (isComponentRef(value.$ref) && !seen.has(value.$ref)) {
+      seen.add(value.$ref)
+      if (hasBinary(resolveRef(value.$ref), seen)) return true
+    }
+    return Object.values(value).some((item) => hasBinary(item, seen))
+  }
+
+  const isBinaryComponent = ($ref: string): boolean => {
+    let binary = binaryComponents.get($ref)
+    if (binary === undefined) {
+      binary = hasBinary(resolveRef($ref), new Set([$ref]))
+      binaryComponents.set($ref, binary)
+    }
+    return binary
+  }
+
+  // Copies a binary-bearing component to `<Name>Multipart`, leaving the original for JSON payloads.
+  const copyComponent = ($ref: string): string => {
+    let name = copies.get($ref)
+    if (name === undefined) {
+      name = allocate(`${JsonPointer.unescapeToken($ref.slice(componentRefPrefix.length))}Multipart`)
+      copies.set($ref, name)
+      Rec.assignProperty(output, name, visit(resolveRef($ref)))
+    }
+    return name
+  }
+
+  // The httpapi format inlines components that only multipart bodies use; reference siblings still apply.
+  const inlineComponent = (value: Record<string, unknown>, $ref: string): unknown => {
+    const { $ref: _, ...siblings } = value
+    inlining.add($ref)
+    const inlined = visit(resolveRef($ref))
+    inlining.delete($ref)
+    return Object.keys(siblings).length === 0 ? inlined : { allOf: [inlined, visit(siblings)] }
+  }
+
+  // Follows component aliases so a reference to a binary string maps to the file schema too.
+  const isBinaryFile = (value: unknown, seen: Set<string> = new Set()): boolean => {
+    if (isMultipartBinaryFile(value)) return true
+    if (!Predicate.isObject(value) || !isComponentRef(value.$ref) || seen.has(value.$ref)) return false
+    seen.add(value.$ref)
+    return isBinaryFile(resolveRef(value.$ref), seen)
+  }
+
+  const visit = (value: unknown): unknown => {
+    if (Array.isArray(value)) return value.map(visit)
+    if (!Predicate.isObject(value)) return value
+    if (isBinaryFile(value)) return { $ref: singleFileRef }
+    if (
+      filesRef !== undefined && isComponentRef(value.$ref) && !shared.has(value.$ref) && !inlining.has(value.$ref)
+    ) {
+      return inlineComponent(value, value.$ref)
+    }
+    const out = Rec.map(value, visit)
+    if (isComponentRef(value.$ref) && isBinaryComponent(value.$ref)) {
+      out.$ref = toDefinitionRef(copyComponent(value.$ref))
+    }
+    if (filesRef !== undefined && isMultipartBinaryFiles(out, singleFileRef)) return { $ref: filesRef }
+    return out
+  }
+
+  // Whether a component is shared is only known once every schema is registered, so `transform` hands
+  // out a placeholder that `finish` fills in after parsing.
+  const pending = new Map<JsonSchema.JsonSchema, JsonSchema.JsonSchema>()
+  const transform = (schema: JsonSchema.JsonSchema): JsonSchema.JsonSchema => {
+    const placeholder: JsonSchema.JsonSchema = {}
+    pending.set(placeholder, schema)
+    return placeholder
+  }
+  const finish = (schemas: Readonly<Record<string, JsonSchema.JsonSchema>>): void => {
+    shared = collectComponentRefs(Object.values(schemas).filter((schema) => !pending.has(schema)), resolveRef)
+    for (const [placeholder, schema] of pending) {
+      Object.assign(placeholder, visit(schema))
+    }
+  }
+
+  return { refs, definitions: output, transform, finish }
 }
 
 const toDefinitionRef = (name: string): string => `#/$defs/${name.replaceAll("~", "~0").replaceAll("/", "~1")}`
 
-const withHttpApiMultipartSchemas = (
-  definitions: JsonSchema.Definitions,
-  multipartSchemaRefs: HttpApiMultipartSchemaRefs | undefined
-): JsonSchema.Definitions => {
-  if (multipartSchemaRefs === undefined) {
-    return definitions
-  }
-  return {
-    ...definitions,
-    [multipartSchemaRefs.singleFile]: {
-      type: "string",
-      format: "binary"
-    },
-    [multipartSchemaRefs.files]: {
-      type: "array",
-      items: {
-        $ref: toDefinitionRef(multipartSchemaRefs.singleFile)
-      }
-    }
-  }
-}
-
-const transformMultipartSchema = (
-  schema: JsonSchema.JsonSchema,
-  multipartSchemaRefs: HttpApiMultipartSchemaRefs | undefined,
+// Collects every component reachable from the schemas, following references through other components.
+// Only JSON Schema keywords that hold subschemas are walked, so a `$ref` inside `default`, `const` or
+// `examples` is treated as data.
+const collectComponentRefs = (
+  schemas: ReadonlyArray<JsonSchema.JsonSchema>,
   resolveRef: (ref: string) => unknown
-): JsonSchema.JsonSchema => {
-  if (multipartSchemaRefs === undefined) {
-    return schema
-  }
-
-  const singleFileRef = toDefinitionRef(multipartSchemaRefs.singleFile)
-  const filesRef = toDefinitionRef(multipartSchemaRefs.files)
-  const cache = new Map<string, unknown>()
-  const stack = new Set<string>()
-
-  const visit = (value: unknown): unknown => {
-    if (Array.isArray(value)) {
-      return value.map(visit)
-    }
-    if (!Predicate.isObject(value)) {
-      return value
-    }
-
-    if (typeof value.$ref === "string" && value.$ref.startsWith("#/components/schemas/")) {
-      const cached = cache.get(value.$ref)
-      if (cached !== undefined) {
-        return cached
-      }
-      if (stack.has(value.$ref)) {
-        return value
-      }
-      stack.add(value.$ref)
-      const transformed = visit(resolveSchemaReference(value.$ref, resolveRef))
-      stack.delete(value.$ref)
-      cache.set(value.$ref, transformed)
-      return transformed
-    }
-
-    if (isMultipartBinaryFile(value)) {
-      return { $ref: singleFileRef }
-    }
-
-    const out: Record<string, unknown> = {}
-    for (const [key, current] of Object.entries(value)) {
-      out[key] = visit(current)
-    }
-
-    if (isMultipartBinaryFiles(out, singleFileRef)) {
-      return { $ref: filesRef }
-    }
-
-    return out
-  }
-
-  return visit(schema) as JsonSchema.JsonSchema
-}
-
-const resolveSchemaReference = (ref: string, resolveRef: (ref: string) => unknown): unknown => {
-  let current: unknown = { $ref: ref }
+): ReadonlySet<string> => {
   const seen = new Set<string>()
-  while (Predicate.isObject(current) && typeof current.$ref === "string") {
-    if (seen.has(current.$ref)) {
-      return current
+  const visit = (schema: unknown): void => {
+    if (Array.isArray(schema)) {
+      for (const item of schema) visit(item)
+      return
     }
-    seen.add(current.$ref)
-    current = resolveRef(current.$ref)
+    if (!Predicate.isObject(schema)) return
+    if (isComponentRef(schema.$ref) && !seen.has(schema.$ref)) {
+      seen.add(schema.$ref)
+      visit(resolveRef(schema.$ref))
+    }
+    for (const key of subschemaKeywords) {
+      visit(schema[key])
+    }
+    for (const key of subschemaMapKeywords) {
+      const map = schema[key]
+      if (Predicate.isObject(map)) visit(Object.values(map))
+    }
   }
-  return current
+  for (const schema of schemas) visit(schema)
+  return seen
 }
 
-const isMultipartBinaryFile = (value: unknown): value is JsonSchema.JsonSchema =>
+const subschemaKeywords = [
+  "items",
+  "prefixItems",
+  "additionalItems",
+  "additionalProperties",
+  "unevaluatedItems",
+  "unevaluatedProperties",
+  "contains",
+  "propertyNames",
+  "contentSchema",
+  "allOf",
+  "anyOf",
+  "oneOf",
+  "not",
+  "if",
+  "then",
+  "else"
+] as const
+
+const subschemaMapKeywords = ["properties", "patternProperties", "dependentSchemas", "$defs", "definitions"] as const
+
+const componentRefPrefix = "#/components/schemas/"
+
+const isComponentRef = (value: unknown): value is string =>
+  typeof value === "string" && value.startsWith(componentRefPrefix)
+
+const isMultipartBinaryFile = (value: unknown): boolean =>
   Predicate.isObject(value) &&
   value.type === "string" &&
   (
@@ -916,16 +1214,51 @@ const isJsonMediaType = (contentType: string): boolean =>
   contentType === "application/json" ||
   (contentType.startsWith("application/") && contentType.endsWith("+json"))
 
+const normalizeMediaType = (contentType: string): string => contentType.toLowerCase().split(";", 1)[0].trim()
+
 const isTextMediaType = (contentType: string): boolean => contentType.startsWith("text/")
 
+const binaryMediaTypes = new Set([
+  "application/octet-stream",
+  "application/pdf",
+  "application/zip",
+  "application/gzip",
+  "application/x-gzip",
+  "application/x-tar",
+  "application/x-zip-compressed"
+])
+
+const binaryMediaTypePrefixes = ["image/", "audio/", "video/", "font/"]
+
 const isBinaryMediaType = (contentType: string): boolean =>
-  contentType === "application/octet-stream" ||
-  (contentType.startsWith("application/") && (contentType.includes("binary") || contentType.endsWith("+octet-stream")))
+  binaryMediaTypes.has(contentType) ||
+  binaryMediaTypePrefixes.some((prefix) => contentType.startsWith(prefix)) ||
+  (contentType.startsWith("application/") &&
+    (contentType.includes("binary") ||
+      contentType.endsWith("+octet-stream") ||
+      contentType.endsWith("+zip") ||
+      contentType.endsWith("+gzip")))
+
+const isBinarySchema = (schema: unknown): boolean =>
+  Predicate.isObject(schema) &&
+  (
+    (typeof schema.format === "string" && schema.format.toLowerCase() === "binary") ||
+    (typeof schema.contentEncoding === "string" && schema.contentEncoding.toLowerCase() === "binary")
+  )
+
+const isSuccessStatus = (status: string): boolean => {
+  const statusMajorNumber = Number(status[0])
+  return !Number.isNaN(statusMajorNumber) && statusMajorNumber < 4
+}
+
+// Response keys are emitted into generated identifiers, so anything other than
+// a status code, status range or `default` (such as `x-` extensions) is skipped.
+const isResponseStatus = (status: string): boolean => /^(?:[1-5]\d\d|[1-5]xx|default)$/i.test(status)
 
 const getRequestMediaTypeEncoding = (
   contentType: string
 ): ParsedOperation.ParsedOperationMediaTypeEncoding | undefined => {
-  const normalized = contentType.toLowerCase()
+  const normalized = normalizeMediaType(contentType)
   if (isJsonMediaType(normalized)) {
     return "json"
   }
@@ -947,7 +1280,7 @@ const getRequestMediaTypeEncoding = (
 const getResponseMediaTypeEncoding = (
   contentType: string
 ): ParsedOperation.ParsedOperationMediaTypeEncoding | undefined => {
-  const normalized = contentType.toLowerCase()
+  const normalized = normalizeMediaType(contentType)
   if (isJsonMediaType(normalized)) {
     return "json"
   }
@@ -963,12 +1296,35 @@ const getResponseMediaTypeEncoding = (
   return
 }
 
-const getEffectStreamEncoding = (mediaType: object): "uint8array" | "sse" | undefined => {
+const getEffectStreamEncoding = (mediaType: object): "uint8array" | "sse" | "ndjson" | undefined => {
   const stream = (mediaType as Record<string, unknown>)["x-effect-stream"]
   if (!Predicate.isObject(stream)) {
     return
   }
-  return stream.encoding === "uint8array" || stream.encoding === "sse" ? stream.encoding : undefined
+  return stream.encoding === "uint8array" || stream.encoding === "sse" || stream.encoding === "ndjson"
+    ? stream.encoding
+    : undefined
+}
+
+const ndjsonMediaTypes = new Set(["application/x-ndjson", "application/jsonl"])
+
+const unsupportedStreamingRequestMediaTypes = new Set(["application/json-seq", "text/event-stream"])
+
+// Effect specs mark NDJSON with x-effect-stream on any content type. Other specs
+// use an OpenAPI 3.2 itemSchema on an NDJSON or JSONL content type.
+const getNdjsonElementSchema = (contentType: string, mediaType: object): JsonSchema.JsonSchema | undefined => {
+  const record = mediaType as Record<string, unknown>
+  if (getEffectStreamEncoding(mediaType) === "ndjson") {
+    return Predicate.isObject(record.schema) ? record.schema as JsonSchema.JsonSchema : undefined
+  }
+  if (
+    Predicate.isUndefined(record["x-effect-stream"]) &&
+    ndjsonMediaTypes.has(normalizeMediaType(contentType)) &&
+    Predicate.isObject(record.itemSchema)
+  ) {
+    return record.itemSchema as JsonSchema.JsonSchema
+  }
+  return
 }
 
 const getEffectStreamErrorSchema = (mediaType: object): JsonSchema.JsonSchema | undefined => {
@@ -979,12 +1335,125 @@ const getEffectStreamErrorSchema = (mediaType: object): JsonSchema.JsonSchema | 
   return stream.errorSchema as JsonSchema.JsonSchema
 }
 
-const resolveReference = (input: unknown, resolveRef: (ref: string) => unknown): any => {
+const makeSseEventSchema = (
+  eventSchema: JsonSchema.JsonSchema,
+  failureEvent: string | undefined
+): JsonSchema.JsonSchema => {
+  if (failureEvent === undefined) {
+    return eventSchema
+  }
+  return {
+    anyOf: [
+      eventSchema,
+      {
+        type: "object",
+        properties: {
+          id: { type: "string" },
+          event: { enum: [failureEvent] },
+          data: { type: "string" }
+        },
+        required: ["event", "data"],
+        additionalProperties: false
+      }
+    ]
+  }
+}
+
+const normalizeSseEventSchema = (
+  root: JsonSchema.JsonSchema,
+  resolveRef: (ref: string) => unknown,
+  dialect: ReturnType<typeof getDialect>
+): JsonSchema.JsonSchema => {
+  const go = (input: JsonSchema.JsonSchema, ancestors: ReadonlySet<unknown>): JsonSchema.JsonSchema => {
+    if (ancestors.has(input)) return input
+    const nextAncestors = new Set(ancestors).add(input)
+    const schema = { ...input } as Record<string, any>
+    if (typeof schema.$ref === "string") {
+      const { $ref, ...siblings } = schema
+      const target = go(resolveRef($ref) as JsonSchema.JsonSchema, nextAncestors)
+      // OpenAPI 3.0 ignores reference siblings. In 3.1 they constrain the target; neither side overrides the other.
+      return dialect === "openapi-3.0" || Object.keys(siblings).length === 0
+        ? target
+        : { allOf: [target, go(siblings, nextAncestors)] }
+    }
+    for (const key of ["allOf", "anyOf", "oneOf"] as const) {
+      if (Array.isArray(schema[key])) {
+        schema[key] = schema[key].map((member) => go(member, nextAncestors))
+      }
+    }
+    if (
+      schema.type !== "object" ||
+      !Predicate.isObject(schema.properties) ||
+      !Object.hasOwn(schema.properties, "id") ||
+      !Object.hasOwn(schema.properties, "event") ||
+      !Object.hasOwn(schema.properties, "data")
+    ) {
+      return schema as JsonSchema.JsonSchema
+    }
+
+    // OpenAPI represents `undefined` as required nullable; restore the SSE parser's optional wire field.
+    schema.properties = {
+      ...schema.properties,
+      id: { type: "string" }
+    }
+    if (Array.isArray(schema.required)) {
+      schema.required = schema.required.filter((name: unknown) => name !== "id")
+    }
+    return schema as JsonSchema.JsonSchema
+  }
+  return go(root, new Set())
+}
+
+const primitiveSchemaTypes = new Set(["string", "number", "integer", "boolean", "null"])
+
+const isPrimitiveValue = (value: unknown): boolean =>
+  value === null || typeof value === "string" || typeof value === "number" || typeof value === "boolean"
+
+// Cookie values are serialized with `String(value)`, so only schemas whose
+// values are always primitives can be represented.
+const isPrimitiveSchema = (
+  input: unknown,
+  resolveRef: (ref: string) => unknown,
+  ancestors: Set<unknown> = new Set()
+): boolean => {
+  const schema = resolveReference(input, resolveRef)
+  if (!Predicate.isObject(schema) || ancestors.has(schema)) {
+    return false
+  }
+  ancestors.add(schema)
+  const members = [schema.anyOf, schema.oneOf, schema.allOf].filter(Array.isArray).flat()
+  const membersArePrimitive = members.every((member) => isPrimitiveSchema(member, resolveRef, ancestors))
+  ancestors.delete(schema)
+  if (!membersArePrimitive) {
+    return false
+  }
+  if (schema.type !== undefined) {
+    const types: ReadonlyArray<unknown> = Array.isArray(schema.type) ? schema.type : [schema.type]
+    return types.every((type) => primitiveSchemaTypes.has(type as string))
+  }
+  if (Array.isArray(schema.enum)) {
+    return schema.enum.every(isPrimitiveValue)
+  }
+  if ("const" in schema) {
+    return isPrimitiveValue(schema.const)
+  }
+  return members.length > 0
+}
+
+const resolveReference = (
+  input: unknown,
+  resolveRef: (ref: string) => unknown,
+  preserveDescription = false
+): any => {
   let current = input
+  let description: string | undefined
   while (Predicate.isObject(current) && typeof current.$ref === "string") {
+    if (preserveDescription && typeof current.description === "string") {
+      description ??= current.description
+    }
     current = resolveRef(current.$ref)
   }
-  return current
+  return description !== undefined && Predicate.isObject(current) ? { ...current, description } : current
 }
 
 const cloneSecurityRequirements = (
@@ -1086,50 +1555,19 @@ const warnForAndSecurityRequirements = (
   }
 }
 
-const hasUnsupportedSuccessfulSseResponse = (
-  responses: ReadonlyArray<readonly [string, unknown]>,
-  hasExplicitSuccessResponse: boolean
-): boolean => {
-  for (const [status, response] of responses) {
-    if (!Predicate.isObject(response)) {
-      continue
+const hasUnsupportedSseResponse = (response: unknown): boolean => {
+  if (!Predicate.isObject(response) || !Predicate.isObject(response.content)) return false
+  return Object.entries(response.content).some(([contentType, mediaType]) => {
+    if (!Predicate.isObject(mediaType)) return false
+    const encoding = getEffectStreamEncoding(mediaType)
+    if (encoding === "sse") {
+      return mediaType.schema === undefined || getEffectStreamErrorSchema(mediaType) === undefined
     }
-    const remappedStatus = remapDefaultResponseStatusForHttpApi(status, hasExplicitSuccessResponse)
-    const statusCode = Number(remappedStatus)
-    if (Number.isNaN(statusCode) || statusCode >= 400) {
-      continue
-    }
-
-    const content = Predicate.isObject(response.content)
-      ? response.content as Record<string, any>
-      : undefined
-    if (Predicate.isUndefined(content)) {
-      continue
-    }
-
-    for (const [contentType, mediaType] of Object.entries(content)) {
-      if (!Predicate.isObject(mediaType)) {
-        continue
-      }
-      const streamEncoding = getEffectStreamEncoding(mediaType)
-      if (streamEncoding === "sse") {
-        if (Predicate.isUndefined(mediaType.schema) || Predicate.isUndefined(getEffectStreamErrorSchema(mediaType))) {
-          return true
-        }
-        continue
-      }
-      if (contentType === "text/event-stream") {
-        return true
-      }
-    }
-  }
-  return false
+    return contentType === "text/event-stream" && encoding !== "ndjson"
+  })
 }
 
-const remapDefaultResponseStatusForHttpApi = (status: string, hasExplicitSuccessResponse: boolean): string =>
-  status === "default" ? (hasExplicitSuccessResponse ? "500" : "200") : status
-
-const methodSupportsRequestBody = (method: OpenAPISpecMethodName): boolean =>
+const methodSupportsRequestBody = (method: Lowercase<HttpMethod>): boolean =>
   method !== "get" && method !== "head" && method !== "options" && method !== "trace"
 
 const warnForOperation = (
@@ -1186,16 +1624,38 @@ const convertSwaggerSpec = Effect.fn((spec: OpenAPISpec) =>
   }).pipe(Effect.withSpan("OpenApi.convertSwaggerSpec"))
 )
 
-const processPath = (path: string): {
+const processPath = (path: string, parameters: ReadonlyArray<OpenApiParameter>): {
   readonly pathIds: Array<string>
   readonly pathTemplate: string
+  readonly pathSchema: JsonSchema.JsonSchema | undefined
 } => {
   const pathIds: Array<string> = []
-  path = path.replace(/{([^}]+)}/g, (_, name) => {
+  const fragments: Array<string> = []
+  const properties: Record<string, JsonSchema.JsonSchema> = {}
+  const required: Array<string> = []
+  let offset = 0
+  for (const match of path.matchAll(/{([^}]+)}/g)) {
+    fragments.push(JSON.stringify(path.slice(offset, match.index)))
+    const name = match[1]
+    const parameter = parameters.find((parameter) => parameter.in === "path" && parameter.name === name)
+    const style = parameter?.style ?? "simple"
+    if (style !== "simple" && style !== "label" && style !== "matrix") {
+      throw new Error(`Unsupported path parameter style "${style}" for "${name}" in "${path}"`)
+    }
     const id = Utils.camelize(name)
     pathIds.push(id)
-    return "${" + id + "}"
-  })
-  const pathTemplate = "`" + path + "`"
-  return { pathIds, pathTemplate } as const
+    fragments.push(
+      `__encodePathParam(${JSON.stringify(name)}, ${id}, ${JSON.stringify(style)}, ${parameter?.explode === true})`
+    )
+    Rec.assignProperty(properties, name, parameter?.schema as JsonSchema.JsonSchema ?? { type: "string" })
+    required.push(name)
+    offset = match.index + match[0].length
+  }
+  fragments.push(JSON.stringify(path.slice(offset)))
+  const pathTemplate = fragments.join(" + ")
+  return {
+    pathIds,
+    pathTemplate,
+    pathSchema: pathIds.length === 0 ? undefined : { type: "object", properties, required, additionalProperties: false }
+  }
 }

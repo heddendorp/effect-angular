@@ -4,9 +4,11 @@
  * When the test layer is provided, calls made through the Effect console APIs
  * are captured in memory instead of being written to the host console. Tests can
  * then assert on logged values deterministically. This module includes the
- * console layer, helpers for reading captured `Console.log` and `Console.error`
- * arguments, and access to the provided test console service.
+ * console layer, readers for captured `Console.log`, `Console.error`, `Console.warn`,
+ * `Console.info`, `Console.debug`, and `Console.trace` arguments, and access to
+ * the provided test console service.
  *
+ * @stability unstable
  * @since 4.0.0
  */
 import * as Array from "../Array.ts"
@@ -31,7 +33,7 @@ import * as Layer from "../Layer.ts"
  *
  * **Example** (Capturing console output in tests)
  *
- * ```ts
+ * ```ts import.meta.vitest
  * import { Console, Effect } from "effect"
  * import { TestConsole } from "effect/testing"
  *
@@ -42,15 +44,22 @@ import * as Layer from "../Layer.ts"
  *   const logs = yield* TestConsole.logLines
  *   const errors = yield* TestConsole.errorLines
  *
- *   console.log(logs) // [["Hello, World!"]]
- *   console.log(errors) // [["An error occurred"]]
+ *   logs // => ["Hello, World!"]
+ *   errors // => ["An error occurred"]
  * }).pipe(Effect.provide(TestConsole.layer))
+ *
+ * await Effect.runPromise(program)
  * ```
  *
  * @see {@link layer} for providing `TestConsole` to an effect
  * @see {@link logLines} for reading captured `Console.log` calls
  * @see {@link errorLines} for reading captured `Console.error` calls
+ * @see {@link warnLines} for reading captured `Console.warn` calls
+ * @see {@link infoLines} for reading captured `Console.info` calls
+ * @see {@link debugLines} for reading captured `Console.debug` calls
+ * @see {@link traceLines} for reading captured `Console.trace` calls
  *
+ * @stability unstable
  * @category models
  * @since 4.0.0
  */
@@ -75,6 +84,30 @@ export interface TestConsole extends Console.Console {
    * instance.
    */
   readonly errorLines: Effect.Effect<ReadonlyArray<unknown>>
+  /**
+   * Returns all parameters captured from `Console.warn` calls in call order.
+   *
+   * @since 4.1.5
+   */
+  readonly warnLines: Effect.Effect<ReadonlyArray<unknown>>
+  /**
+   * Returns all parameters captured from `Console.info` calls in call order.
+   *
+   * @since 4.1.5
+   */
+  readonly infoLines: Effect.Effect<ReadonlyArray<unknown>>
+  /**
+   * Returns all parameters captured from `Console.debug` calls in call order.
+   *
+   * @since 4.1.5
+   */
+  readonly debugLines: Effect.Effect<ReadonlyArray<unknown>>
+  /**
+   * Returns all parameters captured from `Console.trace` calls in call order.
+   *
+   * @since 4.1.5
+   */
+  readonly traceLines: Effect.Effect<ReadonlyArray<unknown>>
 }
 
 /**
@@ -85,6 +118,7 @@ export interface TestConsole extends Console.Console {
  *
  * Use when referring to types nested under the `TestConsole` namespace.
  *
+ * @stability unstable
  * @since 4.0.0
  */
 export declare namespace TestConsole {
@@ -99,12 +133,10 @@ export declare namespace TestConsole {
    *
    * **Example** (Typing captured console methods)
    *
-   * ```ts
+   * ```ts import.meta.vitest
    * import type { TestConsole } from "effect/testing"
    *
    * const method: TestConsole.TestConsole.Method = "log"
-   *
-   * console.log(method) // "log"
    * ```
    *
    * @category models
@@ -122,7 +154,7 @@ export declare namespace TestConsole {
    *
    * **Example** (Typing captured console entries)
    *
-   * ```ts
+   * ```ts import.meta.vitest
    * import type { TestConsole } from "effect/testing"
    *
    * const entry: TestConsole.TestConsole.Entry = {
@@ -130,8 +162,7 @@ export declare namespace TestConsole {
    *   parameters: ["not found"]
    * }
    *
-   * console.log(entry.method) // "error"
-   * console.log(entry.parameters) // ["not found"]
+   * entry // => { method: "error", parameters: ["not found"] }
    * ```
    *
    * @category models
@@ -154,7 +185,7 @@ export declare namespace TestConsole {
  *
  * **Example** (Creating a test console)
  *
- * ```ts
+ * ```ts import.meta.vitest
  * import { Console, Effect } from "effect"
  * import { TestConsole } from "effect/testing"
  *
@@ -165,13 +196,16 @@ export declare namespace TestConsole {
  *   const logs = yield* TestConsole.logLines
  *   const errors = yield* TestConsole.errorLines
  *
- *   console.log("Captured logs:", logs)
- *   console.log("Captured errors:", errors)
+ *   logs // => ["Debug message"]
+ *   errors // => ["Error occurred"]
  * }).pipe(Effect.provide(TestConsole.layer))
+ *
+ * await Effect.runPromise(program)
  * ```
  *
  * @see {@link layer} for providing a `TestConsole` as a `Layer`
  *
+ * @stability unstable
  * @category constructors
  * @since 4.0.0
  */
@@ -184,11 +218,8 @@ export const make = Effect.gen(function*() {
     }
   }
 
-  const logLines = Effect.sync(() => Array.flatMap(entries, (entry) => entry.method === "log" ? entry.parameters : []))
-
-  const errorLines = Effect.sync(() =>
-    Array.flatMap(entries, (entry) => entry.method === "error" ? entry.parameters : [])
-  )
+  const lines = (method: TestConsole.Method) =>
+    Effect.sync(() => Array.flatMap(entries, (entry) => entry.method === method ? entry.parameters : []))
 
   return {
     assert: createEntryUnsafe("assert"),
@@ -210,8 +241,12 @@ export const make = Effect.gen(function*() {
     timeLog: createEntryUnsafe("timeLog"),
     trace: createEntryUnsafe("trace"),
     warn: createEntryUnsafe("warn"),
-    logLines,
-    errorLines
+    logLines: lines("log"),
+    errorLines: lines("error"),
+    warnLines: lines("warn"),
+    infoLines: lines("info"),
+    debugLines: lines("debug"),
+    traceLines: lines("trace")
   } as TestConsole
 })
 
@@ -225,7 +260,7 @@ export const make = Effect.gen(function*() {
  *
  * **Example** (Accessing the test console service)
  *
- * ```ts
+ * ```ts import.meta.vitest
  * import { Effect } from "effect"
  * import { TestConsole } from "effect/testing"
  *
@@ -237,16 +272,19 @@ export const make = Effect.gen(function*() {
  *     const logs = yield* testConsole.logLines
  *     const errors = yield* testConsole.errorLines
  *
- *     console.log("Logs:", logs) // [["Test message"]]
- *     console.log("Errors:", errors) // [["Test error"]]
+ *     logs // => ["Test message"]
+ *     errors // => ["Test error"]
  *   })
  * ).pipe(Effect.provide(TestConsole.layer))
+ *
+ * await Effect.runPromise(program)
  * ```
  *
  * @see {@link layer} for providing the test console service
  * @see {@link logLines} for reading captured `Console.log` calls directly
  * @see {@link errorLines} for reading captured `Console.error` calls directly
  *
+ * @stability unstable
  * @category testing
  * @since 4.0.0
  */
@@ -264,7 +302,7 @@ export const testConsoleWith = <A, E, R>(f: (console: TestConsole) => Effect.Eff
  *
  * **Example** (Providing a test console layer)
  *
- * ```ts
+ * ```ts import.meta.vitest
  * import { Console, Effect } from "effect"
  * import { TestConsole } from "effect/testing"
  *
@@ -275,14 +313,17 @@ export const testConsoleWith = <A, E, R>(f: (console: TestConsole) => Effect.Eff
  *   const logs = yield* TestConsole.logLines
  *   const errors = yield* TestConsole.errorLines
  *
- *   console.log("Captured logs:", logs)
- *   console.log("Captured errors:", errors)
+ *   logs // => ["This will be captured"]
+ *   errors // => ["This error will be captured"]
  * }).pipe(Effect.provide(TestConsole.layer))
+ *
+ * await Effect.runPromise(program)
  * ```
  *
  * @see {@link make} for constructing the service value directly
  * @see {@link testConsoleWith} for accessing the provided test console service
  *
+ * @stability unstable
  * @category layers
  * @since 4.0.0
  */
@@ -299,7 +340,7 @@ export const layer: Layer.Layer<TestConsole> = Layer.effect(Console.Console)(mak
  *
  * **Example** (Reading captured log lines)
  *
- * ```ts
+ * ```ts import.meta.vitest
  * import { Console, Effect } from "effect"
  * import { TestConsole } from "effect/testing"
  *
@@ -310,18 +351,16 @@ export const layer: Layer.Layer<TestConsole> = Layer.effect(Console.Console)(mak
  *
  *   const logs = yield* TestConsole.logLines
  *
- *   console.log(logs)
- *   // [
- *   //   ["First message"],
- *   //   ["Second message", { key: "value" }],
- *   //   ["Third message", 42, true]
- *   // ]
+ *   logs // => ["First message", "Second message", { key: "value" }, "Third message", 42, true]
  * }).pipe(Effect.provide(TestConsole.layer))
+ *
+ * await Effect.runPromise(program)
  * ```
  *
  * @see {@link errorLines} for reading captured `Console.error` output
  * @see {@link layer} for capturing console calls during a test
  *
+ * @stability unstable
  * @category testing
  * @since 4.0.0
  */
@@ -340,7 +379,7 @@ export const logLines: Effect.Effect<ReadonlyArray<unknown>, never, never> = tes
  *
  * **Example** (Reading captured error lines)
  *
- * ```ts
+ * ```ts import.meta.vitest
  * import { Console, Effect } from "effect"
  * import { TestConsole } from "effect/testing"
  *
@@ -350,20 +389,100 @@ export const logLines: Effect.Effect<ReadonlyArray<unknown>, never, never> = tes
  *
  *   const errors = yield* TestConsole.errorLines
  *
- *   console.log(errors)
- *   // [
- *   //   ["Error message"],
- *   //   ["Another error", Error: Something went wrong]
- *   // ]
+ *   const messages = [errors[0], errors[1], errors[2] instanceof Error ? errors[2].message : undefined]
+ *   messages // => ["Error message", "Another error", "Something went wrong"]
  * }).pipe(Effect.provide(TestConsole.layer))
+ *
+ * await Effect.runPromise(program)
  * ```
  *
  * @see {@link logLines} for reading captured `Console.log` output
  * @see {@link layer} for capturing console calls during a test
  *
+ * @stability unstable
  * @category testing
  * @since 4.0.0
  */
 export const errorLines: Effect.Effect<ReadonlyArray<unknown>, never, never> = testConsoleWith(
   (console) => console.errorLines
+)
+
+/**
+ * Returns all parameters captured from `Console.warn` calls thus far, in call
+ * order, without formatting them or including calls to other console methods.
+ *
+ * **When to use**
+ *
+ * Use to assert on captured `Console.warn` output from a program provided with
+ * `TestConsole.layer`.
+ *
+ * @see {@link TestConsole} for the readers of other console methods
+ * @see {@link layer} for capturing console calls during a test
+ *
+ * @stability unstable
+ * @category testing
+ * @since 4.1.5
+ */
+export const warnLines: Effect.Effect<ReadonlyArray<unknown>, never, never> = testConsoleWith(
+  (console) => console.warnLines
+)
+
+/**
+ * Returns all parameters captured from `Console.info` calls thus far, in call
+ * order, without formatting them or including calls to other console methods.
+ *
+ * **When to use**
+ *
+ * Use to assert on captured `Console.info` output from a program provided with
+ * `TestConsole.layer`.
+ *
+ * @see {@link TestConsole} for the readers of other console methods
+ * @see {@link layer} for capturing console calls during a test
+ *
+ * @stability unstable
+ * @category testing
+ * @since 4.1.5
+ */
+export const infoLines: Effect.Effect<ReadonlyArray<unknown>, never, never> = testConsoleWith(
+  (console) => console.infoLines
+)
+
+/**
+ * Returns all parameters captured from `Console.debug` calls thus far, in call
+ * order, without formatting them or including calls to other console methods.
+ *
+ * **When to use**
+ *
+ * Use to assert on captured `Console.debug` output from a program provided with
+ * `TestConsole.layer`.
+ *
+ * @see {@link TestConsole} for the readers of other console methods
+ * @see {@link layer} for capturing console calls during a test
+ *
+ * @stability unstable
+ * @category testing
+ * @since 4.1.5
+ */
+export const debugLines: Effect.Effect<ReadonlyArray<unknown>, never, never> = testConsoleWith(
+  (console) => console.debugLines
+)
+
+/**
+ * Returns all parameters captured from `Console.trace` calls thus far, in call
+ * order, without formatting them or including calls to other console methods.
+ *
+ * **When to use**
+ *
+ * Use to assert on captured `Console.trace` output from a program provided with
+ * `TestConsole.layer`.
+ *
+ * @see {@link TestConsole} for the readers of other console methods
+ * @see {@link layer} for capturing console calls during a test
+ *
+ * @stability unstable
+ * @category testing
+ * @since 4.1.5
+ */
+export const traceLines: Effect.Effect<ReadonlyArray<unknown>, never, never> = testConsoleWith(
+  (console) => console.traceLines
 )

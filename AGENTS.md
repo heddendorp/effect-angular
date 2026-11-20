@@ -76,5 +76,5 @@ When writing Effect code, read `repos/effect/LLMS.md` first, then inspect `repos
 When explicitly asked to refresh the vendored Effect v4 source, use:
 
 ```bash
-git subtree pull --prefix=repos/effect https://github.com/Effect-TS/effect-smol.git main --squash
+git subtree pull --prefix=repos/effect https://github.com/Effect-TS/effect.git main --squash
 ```

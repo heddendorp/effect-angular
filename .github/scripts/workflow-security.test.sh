@@ -76,6 +76,10 @@ require_text "${dependabot}" 'github.event.pull_request.user.id == 49699333'
 require_text "${dependabot}" 'github.event.pull_request.head.repo.full_name == github.repository'
 require_text "${dependabot}" 'ref: ${{ github.event.pull_request.base.sha }}'
 require_text "${dependabot}" 'cancel-in-progress: false'
+require_text "${repo_root}/knope.toml" 'skip_labels = ["no package release"]'
+require_text "${dependabot}" 'needs: clear-knope-label'
+require_text "${dependabot}" "github.event.action == 'synchronize'"
+require_text "${dependabot}" "--remove-label 'no package release'"
 if grep -q 'target-branch:' "${dependabot_config}"; then
   fail 'Dependabot must keep the default target branch implicit for correct metadata directories'
 fi
@@ -118,6 +122,8 @@ require_text "${dependabot_automerge}" 'for _ in {1..15}; do'
 require_text "${dependabot_automerge}" 'Pull request head changed unexpectedly after the ref update.'
 require_text "${dependabot_automerge}" 'Timed out waiting for the pull request head to reflect the generated changeset.'
 require_text "${dependabot_automerge}" 'GH_TOKEN: ${{ github.token }}'
+require_text "${dependabot_automerge}" "-f 'labels[]=no package release'"
+require_text "${dependabot_automerge}" 'Pull request head changed while marking the non-release update.'
 require_text "${dependabot_automerge}" 'gh pr review'
 require_text "${dependabot_automerge}" 'strict_required_status_checks_policy == true'
 require_text "${dependabot_automerge}" '.context == "quality"'

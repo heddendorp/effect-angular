@@ -70,8 +70,9 @@ manual.
 
 When an eligible update affects a published package's tested runtime or peer dependencies, the
 automation adds a package-scoped `patch` change file before CI runs on the final head. Development
-tooling and GitHub Actions updates do not create package release entries because they do not change
-the published package contract.
+tooling and GitHub Actions updates receive the `no package release` label after verification. Knope
+accepts the label for its documentation check without publishing a package release. When a
+Dependabot PR receives a new head, the automation clears the label before classifying the update.
 
 ## Release flow
 

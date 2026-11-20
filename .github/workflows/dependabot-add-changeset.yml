@@ -4,6 +4,7 @@ on:
   pull_request_target:
     types:
       - opened
+      - reopened
       - synchronize
     branches:
       - main
@@ -17,9 +18,36 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  classify:
+  clear-knope-label:
     if: >-
       ${{ github.repository == 'heddendorp/effect-angular' &&
+          github.event.pull_request.user.id == 49699333 &&
+          github.event.pull_request.head.repo.full_name == github.repository &&
+          startsWith(github.event.pull_request.head.ref, 'dependabot/') &&
+          contains(github.event.pull_request.labels.*.name, 'no package release') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      pull-requests: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      PR_NUMBER: ${{ github.event.pull_request.number }}
+      EXPECTED_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+    steps:
+      - name: Clear the documentation exemption for the new head
+        run: |
+          set -euo pipefail
+          current_head="$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}" --jq '.head.sha')"
+          if [[ "${current_head}" == "${EXPECTED_HEAD_SHA}" ]]; then
+            gh pr edit "${PR_NUMBER}" --repo "${GITHUB_REPOSITORY}" --remove-label 'no package release'
+          fi
+
+  classify:
+    needs: clear-knope-label
+    if: >-
+      ${{ !cancelled() &&
+          (needs.clear-knope-label.result == 'success' || needs.clear-knope-label.result == 'skipped') &&
+          github.repository == 'heddendorp/effect-angular' &&
           github.event.sender.id == 49699333 &&
           github.event.pull_request.user.id == 49699333 &&
           github.event.pull_request.base.ref == 'main' &&

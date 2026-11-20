@@ -13,5 +13,8 @@ changelog = "projects/effect-angular-query/CHANGELOG.md"
 [changes]
 ignore_conventional_commits = true
 
+[bot.checks]
+skip_labels = ["no package release"]
+
 [bot.releases]
 enabled = true

@@ -382,7 +382,7 @@ jobs:
           FINAL_SHA: ${{ steps.policy.outputs.current_head_sha }}
         run: echo "final_sha=${FINAL_SHA}" >> "${GITHUB_OUTPUT}"
 
-      - name: Preserve existing Dependabot head
+      - name: Mark verified non-release update for Knope
         if: >-
           ${{ steps.policy.outputs.eligible == 'true' &&
               steps.policy.outputs.should_create != 'true' }}
@@ -396,7 +396,17 @@ jobs:
 
           current_head="$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}" --jq '.head.sha')"
           if [[ "${current_head}" != "${EXPECTED_HEAD_SHA}" ]]; then
-            echo "Pull request head changed before approval."
+            echo "Pull request head changed before marking the non-release update."
+            exit 1
+          fi
+
+          gh api --method POST "repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/labels" \
+            -f 'labels[]=no package release' >/dev/null
+
+          current_head="$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}" --jq '.head.sha')"
+          if [[ "${current_head}" != "${EXPECTED_HEAD_SHA}" ]]; then
+            gh pr edit "${PR_NUMBER}" --repo "${GITHUB_REPOSITORY}" --remove-label 'no package release'
+            echo "Pull request head changed while marking the non-release update."
             exit 1
           fi
 

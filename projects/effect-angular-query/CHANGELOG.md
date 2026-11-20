@@ -3,6 +3,73 @@
 This file records the release history for `@heddendorp/effect-angular-query`.
 Knope generates new entries from change files in `.changeset/`.
 
+## 0.2.0 (2026-11-20)
+
+### Breaking Changes
+
+#### Changed
+
+- Require Angular 22.0.6 or newer within the Angular 22 release line.
+
+#### Migration
+
+- Upgrade applications to Angular 22.0.6 or later in the 22.x series and TypeScript 6.0.3, and use a supported Node.js release before updating either package.
+
+#### Changed
+
+- Require every RPC procedure to use `asRpcQuery(...)` or `asRpcMutation(...)`, preserve that intent through fluent RPC/group composition including `setPayload(...)`, and reject hostile, reserved, or prefix-colliding tags before creating helpers.
+- Require `rpcLayer` to provide the protocol, required client middleware, and schema services for the complete group; middleware and layer-acquisition failures now remain in procedure error types.
+- Retain one scoped RPC client per Angular injector, preserve caller-local RPC headers and tracing context, forward TanStack cancellation, return typed stream failures, and restrict factory defaults to options that are safe across heterogeneous procedures.
+- Canonically encode query inputs while preserving schema-visible `Map` and `Set` insertion order, preserve TanStack `DataTag` and `select` inference, and make `exact: true` filters match one procedure path across all of its inputs.
+
+#### Migration
+
+- Wrap every procedure explicitly with `asRpcQuery(...)` or `asRpcMutation(...)` before adding it to the group.
+- Merge required client-middleware and schema-service layers into `rpcLayer`; handle its construction error in the generated procedure error union.
+- Move `select`, `initialData`, and data/error-dependent callbacks from factory-wide defaults into each procedure's `queryOptions(...)` overrides.
+- If an RPC input contains a custom class, pass a deterministic `inputEncoder` to `queryKey(...)` and `queryOptions(...)`.
+- If a procedure treats `Map` or `Set` insertion order as insignificant, use `inputEncoder` to normalize it explicitly.
+
+#### Update both libraries to stable Effect 4. Applications using the previous beta must install `effect@^4.1.5` when upgrading.
+
+Update application imports from `effect/unstable/http` and `effect/unstable/rpc` to `effect/http` and `effect/rpc`.
+
+### Fixes
+
+- Include MIT license metadata and the full license text in both npm packages.
+
+#### Automated Dependabot dependency update for PR #36.
+
+#### Updated workspace dependencies
+
+- @tanstack/angular-query-experimental: 5.100.9 -> 5.101.2
+
+Update type: version-update:semver-minor
+
+#### Automated Dependabot dependency update for PR #49.
+
+#### Updated workspace dependencies
+
+- @angular/build: 22.0.6 -> 22.0.7
+- @angular/cli: 22.0.6 -> 22.0.7
+- @angular/common: 22.0.6 -> 22.0.7
+- @angular/compiler: 22.0.6 -> 22.0.7
+- @angular/compiler-cli: 22.0.6 -> 22.0.7
+- @angular/core: 22.0.6 -> 22.0.7
+- @angular/forms: 22.0.6 -> 22.0.7
+- @angular/platform-browser: 22.0.6 -> 22.0.7
+- @angular/router: 22.0.6 -> 22.0.7
+
+Update type: version-update:semver-patch
+
+#### Automated Dependabot dependency update for PR #50.
+
+#### Updated workspace dependencies
+
+- @tanstack/angular-query-experimental: 5.101.2 -> 5.101.3
+
+Update type: version-update:semver-patch
+
 ## 0.1.4 (2026-05-06)
 
 ### Features

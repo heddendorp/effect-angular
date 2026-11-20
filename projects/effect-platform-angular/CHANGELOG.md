@@ -3,6 +3,53 @@
 This file records the release history for `@heddendorp/effect-platform-angular`.
 Knope generates new entries from change files in `.changeset/`.
 
+## 0.1.0 (2026-11-20)
+
+### Breaking Changes
+
+#### Changed
+
+- Require Angular 22.0.6 or newer within the Angular 22 release line.
+
+#### Migration
+
+- Upgrade applications to Angular 22.0.6 or later in the 22.x series and TypeScript 6.0.3, and use a supported Node.js release before updating either package.
+
+#### Changed
+
+- Preserve binary stream request bodies, cap buffered uploads at a configurable 16 MiB by default, report upload-limit failures as non-retryable encoding errors, support an explicit SSR base URL with typed invalid-URL failures, and fail bodyless or prematurely completed Angular responses without hanging.
+- Reject framed RPC serializers with `UnsupportedRpcSerializationError` because Angular `HttpClient` cannot progressively deliver those responses.
+
+#### Migration
+
+- Set `maxBufferedRequestBodyBytes` when calling `provideEffectHttpClient(...)` if an application intentionally sends larger buffered uploads, or use a streaming-capable transport.
+- Configure `baseUrl` for relative URLs during SSR.
+- Use unframed JSON RPC serialization with the Angular HTTP adapter; move framed or streaming RPC procedures to a streaming-capable protocol.
+
+#### Update both libraries to stable Effect 4. Applications using the previous beta must install `effect@^4.1.5` when upgrading.
+
+Update application imports from `effect/unstable/http` and `effect/unstable/rpc` to `effect/http` and `effect/rpc`.
+
+### Fixes
+
+- Include MIT license metadata and the full license text in both npm packages.
+
+#### Automated Dependabot dependency update for PR #49.
+
+#### Updated workspace dependencies
+
+- @angular/build: 22.0.6 -> 22.0.7
+- @angular/cli: 22.0.6 -> 22.0.7
+- @angular/common: 22.0.6 -> 22.0.7
+- @angular/compiler: 22.0.6 -> 22.0.7
+- @angular/compiler-cli: 22.0.6 -> 22.0.7
+- @angular/core: 22.0.6 -> 22.0.7
+- @angular/forms: 22.0.6 -> 22.0.7
+- @angular/platform-browser: 22.0.6 -> 22.0.7
+- @angular/router: 22.0.6 -> 22.0.7
+
+Update type: version-update:semver-patch
+
 ## 0.0.9 (2026-05-06)
 
 ### Features

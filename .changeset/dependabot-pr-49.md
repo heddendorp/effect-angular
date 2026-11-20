@@ -5,7 +5,7 @@ effect-angular-query: patch
 
 Automated Dependabot dependency update for PR #49.
 
-### Updated dependencies
+### Updated workspace dependencies
 
 - @angular/build: 22.0.6 -> 22.0.7
 - @angular/cli: 22.0.6 -> 22.0.7

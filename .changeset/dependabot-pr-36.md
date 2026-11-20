@@ -4,7 +4,7 @@ effect-angular-query: patch
 
 Automated Dependabot dependency update for PR #36.
 
-### Updated dependencies
+### Updated workspace dependencies
 
 - @tanstack/angular-query-experimental: 5.100.9 -> 5.101.2
 

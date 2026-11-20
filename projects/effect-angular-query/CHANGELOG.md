@@ -3,6 +3,14 @@
 This file records the release history for `@heddendorp/effect-angular-query`.
 Knope generates new entries from change files in `.changeset/`.
 
+## 0.2.2 (2026-11-20)
+
+### Fixes
+
+#### Group routine dependency updates and automatically document updates that affect
+
+published packages.
+
 ## 0.2.1 (2026-11-20)
 
 ### Fixes

@@ -1,80 +1,148 @@
-You are an expert in TypeScript, Angular, and scalable web application development. You write functional, maintainable, performant, and accessible code following Angular and TypeScript best practices.
+This is the Effect library repository, focusing on functional programming patterns and effect systems in TypeScript.
 
-## TypeScript Best Practices
+## Overview
 
-- Use strict type checking
-- Prefer type inference when the type is obvious
-- Avoid the `any` type; use `unknown` when type is uncertain
+- The git base branch is `main`.
+- Use `pnpm` as the package manager.
+- Keep changes focused and follow established patterns in the repository.
+- Before writing code, read the relevant files in `./.patterns/` and inspect similar existing code.
 
-## Angular Best Practices
+## Think Before Coding
 
-- Always use standalone components over NgModules
-- Must NOT set `standalone: true` inside Angular decorators. It's the default in Angular v20+.
-- Use signals for state management
-- Implement lazy loading for feature routes
-- Do NOT use the `@HostBinding` and `@HostListener` decorators. Put host bindings inside the `host` object of the `@Component` or `@Directive` decorator instead
-- Use `NgOptimizedImage` for all static images.
-  - `NgOptimizedImage` does not work for inline base64 images.
+**Don't assume. Don't hide confusion. Surface tradeoffs.**
 
-## Accessibility Requirements
+Before implementing:
 
-- It MUST pass all AXE checks.
-- It MUST follow all WCAG AA minimums, including focus management, color contrast, and ARIA attributes.
+- State your assumptions explicitly. If uncertain, ask.
+- If multiple interpretations exist, present them - don't pick silently.
+- If a simpler approach exists, say so. Push back when warranted.
+- If something is unclear, stop. Name what's confusing. Ask.
 
-### Components
+## Simplicity First
 
-- Keep components small and focused on a single responsibility
-- Use `input()` and `output()` functions instead of decorators
-- Use `computed()` for derived state
-- Set `changeDetection: ChangeDetectionStrategy.OnPush` in `@Component` decorator
-- Prefer inline templates for small components
-- Prefer Reactive forms instead of Template-driven ones
-- Do NOT use `ngClass`, use `class` bindings instead
-- Do NOT use `ngStyle`, use `style` bindings instead
-- When using external templates/styles, use paths relative to the component TS file.
+**Minimum code that solves the problem. Nothing speculative.**
 
-## State Management
+- No features beyond what was asked.
+- No abstractions for single-use code.
+- No "flexibility" or "configurability" that wasn't requested.
+- No error handling for impossible scenarios.
+- If you write 200 lines and it could be 50, rewrite it.
 
-- Use signals for local component state
-- Use `computed()` for derived state
-- Keep state transformations pure and predictable
-- Do NOT use `mutate` on signals, use `update` or `set` instead
+Ask yourself: "Would a senior engineer say this is overcomplicated?" If yes, simplify.
 
-## Templates
+## Surgical Changes
 
-- Keep templates simple and avoid complex logic
-- Use native control flow (`@if`, `@for`, `@switch`) instead of `*ngIf`, `*ngFor`, `*ngSwitch`
-- Use the async pipe to handle observables
-- Do not assume globals like (`new Date()`) are available.
-- Do not write arrow functions in templates (they are not supported).
+**Touch only what you must. Clean up only your own mess.**
 
-## Services
+When editing existing code:
 
-- Design services around a single responsibility
-- Use the `providedIn: 'root'` option for singleton services
-- Use the `inject()` function instead of constructor injection
+- Don't "improve" adjacent code, comments, or formatting.
+- Don't refactor things that aren't broken.
+- Match existing style, even if you'd do it differently.
+- If you notice unrelated dead code, mention it - don't delete it.
 
-## Release and Change Tracking
+When your changes create orphans:
 
-- Use changesets for tracking user-facing changes.
-- Add a changeset file for each user-facing PR under `.changeset/`.
-- Use valid changeset frontmatter in each file (`effect-platform-angular` and/or `effect-angular-query` with `patch|minor|major`), then a Markdown summary body.
-- Do not rely on conventional commits alone for release notes.
-- Keep changeset summaries concise and focused on user impact.
+- Remove imports/variables/functions that YOUR changes made unused.
+- Don't remove pre-existing dead code unless asked.
 
-## Vendored Repositories
+The test: Every changed line should trace directly to the user's request.
 
-This project vendors external repositories under `repos/`.
+## Goal-Driven Execution
 
-- Use vendored repositories as read-only reference material when working with related libraries.
-- Prefer examples and patterns from the vendored source code over generated guesses or web search results.
-- Do not edit files under `repos/` unless explicitly asked.
-- Do not import from `repos/`; application code must continue importing from normal package dependencies.
+**Define success criteria. Loop until verified.**
 
-When writing Effect code, read `repos/effect/LLMS.md` first, then inspect `repos/effect/` for idiomatic usage, tests, module structure, and API design. Treat the vendored Effect source as the source of truth for Effect patterns.
+Transform tasks into verifiable goals:
 
-When explicitly asked to refresh the vendored Effect v4 source, use:
+- "Add validation" → "Write tests for invalid inputs, then make them pass"
+- "Fix the bug" → "Write a test that reproduces it, then make it pass"
+- "Refactor X" → "Ensure tests pass before and after"
 
-```bash
-git subtree pull --prefix=repos/effect https://github.com/Effect-TS/effect-smol.git main --squash
+For multi-step tasks, state a brief plan:
+
 ```
+1. [Step] → verify: [check]
+2. [Step] → verify: [check]
+3. [Step] → verify: [check]
+```
+
+Strong success criteria let you loop independently. Weak criteria ("make it work") require constant clarification.
+
+## Workflow
+
+1. Inspect nearby implementation, tests, and pattern docs before editing.
+2. Prefer existing abstractions and conventions over introducing new ones.
+3. For ad hoc runnable code, create a temporary file in `scratchpad/`, run it with `node scratchpad/<file>.ts`, and delete it when done.
+   The local runtime is Node 24, which can run TypeScript files directly; use plain `node` for local TypeScript probes instead of `tsx` unless `node` fails.
+4. Run the validation appropriate to the change type.
+5. Report which validation commands were run and any commands that could not be run.
+
+## Validation
+
+Use the narrowest validation that still covers the change:
+
+| Change type                      | Validation                                                                         |
+| -------------------------------- | ---------------------------------------------------------------------------------- |
+| Code changes                     | `pnpm lint-fix`, targeted `pnpm test <test_file.ts>`, `pnpm check`                 |
+| Tests-only changes               | `pnpm lint-fix`, targeted `pnpm test <test_file.ts>`, `pnpm check`                 |
+| Type-level/API type changes      | Targeted `pnpm test-types <filename>`, plus `pnpm check` when source types changed |
+| JSDoc text/category/link changes | `pnpm lint`                                                                        |
+| JSDoc example changes            | `pnpm lint`; from the changed package directory, run `pnpm docgen`                 |
+| Docs-only changes                | `pnpm lint-fix`; no tests required unless examples or code changed                 |
+
+## Bundle Size Preview
+
+When asked to show bundle-size impact for a commit, use the existing bundle comparison workflow:
+
+1. For the latest commit, run `pnpm bundle-compare HEAD~1`.
+   For another base, run `pnpm bundle-compare <base-ref>`.
+2. Read the Markdown report from `tmp/bundle-stats.txt` and summarize the non-zero differences.
+3. Leave `tmp/bundle-base` in place unless cleanup is requested. To clean it up, run `git worktree remove --force tmp/bundle-base`.
+
+## Coding Patterns
+
+Read `.patterns/effect.md` before changing Effect code. In particular:
+
+- Prefer `Effect.fnUntraced` over functions that only return `Effect.gen`.
+- Prefer class syntax for `Context.Service`.
+- Do not use `async` / `await` or `try` / `catch`; use Effect APIs such as `Effect.gen`, `Effect.fnUntraced`, and `Effect.tryPromise`.
+- Do not use `Date.now` or `new Date`; use `Clock`, and use `TestClock` in tests.
+
+## Testing
+
+Read `.patterns/testing.md` before writing or changing tests.
+
+- Test files are located in `packages/*/test/`.
+- Main Effect library tests are in `packages/effect/test/`.
+- Use `it.effect` for Effect-returning tests.
+- Use regular `it` for pure synchronous tests.
+- Do not use `Effect.runSync` in tests.
+- Do not use `expect` from Vitest; use `assert` from `@effect/vitest`.
+- Type-level tests are in `packages/*/typetest/` and run with `pnpm test-types <filename>`.
+
+## Documentation
+
+- For AI documentation, read `ai-docs/README.md` very carefully before writing examples.
+- AI documentation changes may include explanatory comments when useful.
+- For public JSDoc `@category` guidance, read `.patterns/jsdoc.md`.
+- When JSDoc examples are localized to a single package, run `pnpm docgen` from that package directory instead of the repository root.
+
+## Generated Files
+
+Do not hand-edit generated files. Run the appropriate generator instead.
+
+- `index.ts` barrel files are generated; run `pnpm codegen` after adding or removing modules.
+
+## Changesets
+
+Create a changeset in `.changeset/` for runtime behavior changes or exported type/API changes:
+
+```md
+---
+"package-name": patch/minor/major
+---
+
+A description of the change.
+```
+
+Tests-only changes, internal refactors, docs-only changes, and JSDoc-only maintenance may skip changesets by maintainer decision.

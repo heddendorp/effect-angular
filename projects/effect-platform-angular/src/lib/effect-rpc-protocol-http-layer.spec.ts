@@ -7,9 +7,9 @@ import * as Effect from 'effect/Effect';
 import * as Exit from 'effect/Exit';
 import * as Layer from 'effect/Layer';
 import * as Option from 'effect/Option';
-import { Rpc, RpcClient, RpcGroup } from 'effect/unstable/rpc';
-import { RpcSerialization } from 'effect/unstable/rpc';
-import { HttpClient as EffectHttpClient } from 'effect/unstable/http';
+import { Rpc, RpcClient, RpcGroup } from 'effect/rpc';
+import { RpcSerialization } from 'effect/rpc';
+import { HttpClient as EffectHttpClient } from 'effect/http';
 
 import {
   EFFECT_HTTP_CLIENT_LAYER,

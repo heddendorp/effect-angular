@@ -2,7 +2,7 @@ import { TestBed } from '@angular/core/testing';
 import * as Effect from 'effect/Effect';
 import * as Layer from 'effect/Layer';
 import * as Schema from 'effect/Schema';
-import { Rpc, RpcClient, RpcGroup } from 'effect/unstable/rpc';
+import { Rpc, RpcClient, RpcGroup, RpcSerialization } from 'effect/rpc';
 
 import {
   asRpcMutation,
@@ -36,6 +36,7 @@ const createRpcLayer = () =>
     RpcClient.Protocol.make(() =>
       Effect.succeed({
         send: () => Effect.void,
+        codecFor: RpcSerialization.json.codecFor,
         supportsAck: false,
         supportsTransferables: false,
       }),

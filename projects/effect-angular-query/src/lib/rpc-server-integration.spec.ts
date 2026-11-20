@@ -4,8 +4,8 @@ import * as FileSystem from 'effect/FileSystem';
 import * as Layer from 'effect/Layer';
 import * as Path from 'effect/Path';
 import * as Schema from 'effect/Schema';
-import { Etag, FetchHttpClient, HttpPlatform, HttpRouter } from 'effect/unstable/http';
-import { Rpc, RpcClient, RpcGroup, RpcSerialization, RpcServer } from 'effect/unstable/rpc';
+import { Etag, FetchHttpClient, HttpPlatform, HttpRouter } from 'effect/http';
+import { Rpc, RpcClient, RpcGroup, RpcSerialization, RpcServer } from 'effect/rpc';
 
 import { asRpcQuery, createEffectRpcAngularClient } from './effect-rpc-query-client';
 

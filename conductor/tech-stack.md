@@ -7,7 +7,7 @@
 ## Frameworks and Core Libraries
 
 - Angular 22 (standalone components default, strict templates).
-- Effect 4.0.0-beta.97.
+- Effect 4.1.5.
 - RxJS 7.8.
 
 ## Project Type
@@ -28,7 +28,7 @@
 ## Tooling
 
 - TypeScript 6.0.3.
-- Bun 1.3.14 as the package manager.
+- Bun 1.4.5 as the package manager.
 
 ## Data/Storage
 

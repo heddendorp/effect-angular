@@ -7,8 +7,8 @@ import {
 import * as Data from 'effect/Data';
 import * as Effect from 'effect/Effect';
 import * as Layer from 'effect/Layer';
-import { HttpClient as EffectHttpClient } from 'effect/unstable/http';
-import { RpcClient, RpcSerialization } from 'effect/unstable/rpc';
+import { HttpClient as EffectHttpClient } from 'effect/http';
+import { RpcClient, RpcSerialization } from 'effect/rpc';
 
 import { EFFECT_HTTP_CLIENT } from './effect-http-client';
 

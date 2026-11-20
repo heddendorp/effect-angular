@@ -3,7 +3,7 @@ import { QueryClient } from '@tanstack/angular-query-experimental';
 import * as Effect from 'effect/Effect';
 import * as Layer from 'effect/Layer';
 import * as Schema from 'effect/Schema';
-import { Rpc, RpcClient, RpcClientError, RpcGroup, RpcSchema } from 'effect/unstable/rpc';
+import { Rpc, RpcClient, RpcClientError, RpcGroup, RpcSchema, RpcSerialization } from 'effect/rpc';
 
 import { asRpcMutation, asRpcQuery, createEffectRpcAngularClient } from './effect-rpc-query-client';
 
@@ -40,6 +40,7 @@ const createFailingRpcLayer = (error: RpcClientError.RpcClientError) =>
     RpcClient.Protocol.make(() =>
       Effect.succeed({
         send: () => Effect.fail(error),
+        codecFor: RpcSerialization.json.codecFor,
         supportsAck: false,
         supportsTransferables: false,
       }),

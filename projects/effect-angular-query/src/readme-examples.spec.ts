@@ -7,7 +7,7 @@ import {
 } from '@tanstack/angular-query-experimental';
 import * as Effect from 'effect/Effect';
 import * as Layer from 'effect/Layer';
-import { RpcClient } from 'effect/unstable/rpc';
+import { RpcClient, RpcSerialization } from 'effect/rpc';
 
 import { createEffectRpcAngularClient } from './lib/effect-rpc-query-client';
 import { AppRpcs } from './testing/rpc-contracts';
@@ -18,6 +18,7 @@ const createRpcLayer = () =>
     RpcClient.Protocol.make(() =>
       Effect.succeed({
         send: () => Effect.void,
+        codecFor: RpcSerialization.json.codecFor,
         supportsAck: false,
         supportsTransferables: false,
       }),

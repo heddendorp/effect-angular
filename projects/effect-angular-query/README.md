@@ -173,8 +173,13 @@ const input = new UserLookup('1');
 const inputEncoder = (value: UserLookup) => ({ id: value.id });
 
 rpc.users.get.queryKey(input, { inputEncoder });
-rpc.users.get.queryOptions(input, { inputEncoder });
+rpc.users.get.queryOptions(input, {
+  inputEncoder,
+  snapshotInput: (value) => new UserLookup(value.id),
+});
 ```
+
+Query options and standalone query functions capture plain objects, arrays, and supported built-in values when created. For mutable custom instances, use `snapshotInput` to copy the payload, including nested mutable fields. Immutable classes can continue using `inputEncoder` alone.
 
 `Map` and `Set` inputs preserve insertion order, matching Effect's encoded RPC payloads. If a
 procedure treats their order as insignificant, use `inputEncoder` to return an explicitly sorted

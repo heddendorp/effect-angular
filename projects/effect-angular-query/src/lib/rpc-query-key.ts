@@ -180,7 +180,7 @@ const canonicalize = (
       .sort()
       .map((key) => [key, canonicalize(record[key], ancestors, [...path, key])] as const);
 
-    if (!Object.hasOwn(input, KEY_VALUE_TAG)) {
+    if (!Object.hasOwn(input, KEY_VALUE_TAG) && !Object.hasOwn(input, '__proto__')) {
       return Object.fromEntries(entries) as JsonObject;
     }
 

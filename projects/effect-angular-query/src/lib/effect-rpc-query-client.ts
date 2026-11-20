@@ -5,7 +5,11 @@ import {
   inject,
   makeEnvironmentProviders,
 } from '@angular/core';
-import type { CreateMutationOptions, QueryFilters } from '@tanstack/angular-query-experimental';
+import {
+  hashKey,
+  type CreateMutationOptions,
+  type QueryFilters,
+} from '@tanstack/angular-query-experimental';
 import * as Context from 'effect/Context';
 import * as Effect from 'effect/Effect';
 import * as Layer from 'effect/Layer';
@@ -15,7 +19,7 @@ import * as Schema from 'effect/Schema';
 import {
   Rpc,
   RpcClient,
-  type RpcClientError,
+  RpcClientError,
   type RpcGroup,
   type RpcMiddleware,
   RpcSchema,
@@ -23,6 +27,7 @@ import {
 
 import { createRpcMutationOptions } from './rpc-mutation-options';
 import type { RpcMutationOptionsOverrides } from './rpc-mutation-options';
+import { snapshotQueryInput } from './rpc-query-input';
 import { createRpcQueryKey } from './rpc-query-key';
 import type { RpcKeyPrefix, RpcQueryInputEncoder } from './rpc-query-key';
 import { createRpcQueryOptions } from './rpc-query-options';
@@ -303,27 +308,33 @@ export type RpcQueryKeyOverrides<TInput = unknown> = {
   readonly inputEncoder?: RpcQueryInputEncoder<TInput>;
 };
 
-export type RpcQueryOptionsInput<TInput, TQueryFnData, TError, TData> = {
-  readonly overrides?: RpcUndefinedQueryOptionsOverrides<
-    TQueryFnData,
-    TError,
-    TData,
-    RpcQueryKey<TInput>
-  >;
-  readonly keyPrefix?: RpcKeyPrefix;
+type RpcQueryInputOptions<TInput> = {
   readonly inputEncoder?: RpcQueryInputEncoder<TInput>;
+  /** Return an independent payload for later requests when using mutable custom classes. */
+  readonly snapshotInput?: (input: TInput) => TInput;
 };
 
-export type RpcDefinedQueryOptionsInput<TInput, TQueryFnData, TError, TData> = {
-  readonly overrides: RpcDefinedQueryOptionsOverrides<
-    TQueryFnData,
-    TError,
-    TData,
-    RpcQueryKey<TInput>
-  >;
-  readonly keyPrefix?: RpcKeyPrefix;
-  readonly inputEncoder?: RpcQueryInputEncoder<TInput>;
-};
+export type RpcQueryOptionsInput<TInput, TQueryFnData, TError, TData> =
+  RpcQueryInputOptions<TInput> & {
+    readonly overrides?: RpcUndefinedQueryOptionsOverrides<
+      TQueryFnData,
+      TError,
+      TData,
+      RpcQueryKey<TInput>
+    >;
+    readonly keyPrefix?: RpcKeyPrefix;
+  };
+
+export type RpcDefinedQueryOptionsInput<TInput, TQueryFnData, TError, TData> =
+  RpcQueryInputOptions<TInput> & {
+    readonly overrides: RpcDefinedQueryOptionsOverrides<
+      TQueryFnData,
+      TError,
+      TData,
+      RpcQueryKey<TInput>
+    >;
+    readonly keyPrefix?: RpcKeyPrefix;
+  };
 
 export type RpcMutationKeyOverrides = {
   readonly keyPrefix?: RpcKeyPrefix;
@@ -359,6 +370,7 @@ type RpcQueryProcedureHelper<Current extends Rpc.Any, LayerError> = RpcProcedure
   ) => RpcQueryKey<Rpc.PayloadConstructor<Current>>;
   readonly queryFn: (
     input: Rpc.PayloadConstructor<Current>,
+    options?: RpcQueryInputOptions<Rpc.PayloadConstructor<Current>>,
   ) => RpcQueryFn<Rpc.SuccessExit<Current>, RpcQueryKey<Rpc.PayloadConstructor<Current>>>;
   readonly queryOptions: {
     <TData = Rpc.SuccessExit<Current>>(
@@ -663,12 +675,37 @@ const createProcedureHelper = <
       type: 'query' satisfies RpcQueryKeyType,
     });
 
-  const queryFn =
+  type Input = Rpc.PayloadConstructor<Current>;
+  const fetchSnapshot =
     (
-      input: Rpc.PayloadConstructor<Current>,
-    ): ReturnType<RpcQueryProcedureHelper<Current, LayerError>['queryFn']> =>
-    (context) =>
-      call(input, { signal: context.signal });
+      snapshot: Input,
+      encoder?: RpcQueryInputEncoder<Input>,
+    ): RpcQueryFn<Rpc.SuccessExit<Current>, RpcQueryKey<Input>> =>
+    async ({ signal, queryKey: cacheKey }) => {
+      // Encoders can work with opaque class instances that cannot be copied generically.
+      // Reject changed identity before dispatch and before the result enters the cache.
+      const checkIdentity = () => {
+        if (
+          encoder &&
+          hashKey([queryKey(snapshot, { inputEncoder: encoder })[1].input]) !==
+            hashKey([cacheKey[1].input])
+        ) {
+          throw new RpcClientError.RpcClientError({
+            reason: new RpcClientError.RpcClientDefect({
+              message: 'RPC query input changed. Supply snapshotInput for mutable custom payloads.',
+              cause: undefined,
+            }),
+          });
+        }
+      };
+      checkIdentity();
+      const result = await call(snapshot, { signal });
+      checkIdentity();
+      return result;
+    };
+
+  const queryFn = (input: Input, options: RpcQueryInputOptions<Input> = {}) =>
+    fetchSnapshot((options.snapshotInput ?? snapshotQueryInput)(input), options.inputEncoder);
 
   function queryOptions<TData = Rpc.SuccessExit<Current>>(
     input: Rpc.PayloadConstructor<Current>,
@@ -709,6 +746,9 @@ const createProcedureHelper = <
       >;
       readonly keyPrefix?: RpcKeyPrefix;
       readonly inputEncoder?: RpcQueryInputEncoder<Rpc.PayloadConstructor<Current>>;
+      readonly snapshotInput?: (
+        input: Rpc.PayloadConstructor<Current>,
+      ) => Rpc.PayloadConstructor<Current>;
     } = {},
   ):
     | RpcDefinedQueryOptions<
@@ -723,13 +763,14 @@ const createProcedureHelper = <
         RpcProcedureError<Current, LayerError>,
         TData
       > {
+    const snapshot = (options.snapshotInput ?? snapshotQueryInput)(input);
     return createRpcQueryOptions({
       pathSegments,
-      input,
+      input: snapshot,
       inputEncoder: options.inputEncoder,
       keyPrefix: resolveKeyPrefix(config.keyPrefix, options.keyPrefix),
       type: 'query',
-      queryFn: queryFn(input),
+      queryFn: fetchSnapshot(snapshot, options.inputEncoder),
       defaults: config.queryDefaults,
       overrides: options.overrides,
     });

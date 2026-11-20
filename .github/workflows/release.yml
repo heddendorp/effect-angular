@@ -76,17 +76,7 @@ jobs:
 
       - name: Check if effect-platform-angular version is unpublished
         id: check_effect_platform_angular
-        working-directory: dist/effect-platform-angular
-        run: |
-          PACKAGE_NAME="$(node -p "require('./package.json').name")"
-          PACKAGE_VERSION="$(node -p "require('./package.json').version")"
-          if npm view "${PACKAGE_NAME}@${PACKAGE_VERSION}" version >/dev/null 2>&1; then
-            echo "publish=false" >> "$GITHUB_OUTPUT"
-            echo "${PACKAGE_NAME}@${PACKAGE_VERSION} is already published. Skipping publish."
-          else
-            echo "publish=true" >> "$GITHUB_OUTPUT"
-            echo "${PACKAGE_NAME}@${PACKAGE_VERSION} is not published yet. Will publish."
-          fi
+        run: node scripts/release-registry.mjs check dist/effect-platform-angular >> "$GITHUB_OUTPUT"
 
       - name: Publish effect-platform-angular to npm
         if: steps.check_effect_platform_angular.outputs.publish == 'true'
@@ -97,17 +87,7 @@ jobs:
 
       - name: Check if effect-angular-query version is unpublished
         id: check_effect_angular_query
-        working-directory: dist/effect-angular-query
-        run: |
-          PACKAGE_NAME="$(node -p "require('./package.json').name")"
-          PACKAGE_VERSION="$(node -p "require('./package.json').version")"
-          if npm view "${PACKAGE_NAME}@${PACKAGE_VERSION}" version >/dev/null 2>&1; then
-            echo "publish=false" >> "$GITHUB_OUTPUT"
-            echo "${PACKAGE_NAME}@${PACKAGE_VERSION} is already published. Skipping publish."
-          else
-            echo "publish=true" >> "$GITHUB_OUTPUT"
-            echo "${PACKAGE_NAME}@${PACKAGE_VERSION} is not published yet. Will publish."
-          fi
+        run: node scripts/release-registry.mjs check dist/effect-angular-query >> "$GITHUB_OUTPUT"
 
       - name: Publish effect-angular-query to npm
         if: steps.check_effect_angular_query.outputs.publish == 'true'
@@ -115,3 +95,6 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ''
         run: npm publish
+
+      - name: Verify published versions and latest tags
+        run: node scripts/release-registry.mjs verify dist/effect-platform-angular dist/effect-angular-query

@@ -1,6 +1,7 @@
 import {
   HttpClient,
   HttpRequest,
+  HttpResponse,
   provideHttpClient,
   withInterceptors,
   withXhr,
@@ -19,7 +20,7 @@ import {
   HttpClientError,
   HttpClientRequest,
 } from 'effect/http';
-import { EMPTY } from 'rxjs';
+import { EMPTY, Observable } from 'rxjs';
 
 import { EFFECT_HTTP_CLIENT, provideEffectHttpClient } from './effect-http-client';
 import { BufferedRequestBodyTooLargeError, createAngularHttpClient } from './http-client-adapter';
@@ -226,6 +227,40 @@ describe('Angular HttpClient adapter request mapping', () => {
 
     testRequest.flush(new ArrayBuffer(0));
     await response;
+  });
+
+  it('serializes only the selected raw binary view bytes', async () => {
+    const bytes = Uint8Array.of(0, 65, 66, 0);
+    const request = HttpClientRequest.post('https://example.test/raw-view', {
+      body: HttpBody.raw(new DataView(bytes.buffer, 1, 2)),
+    });
+    const response = Effect.runPromise(adapter.execute(request));
+    const pending = controller.expectOne('https://example.test/raw-view');
+    expect(new Uint8Array(pending.request.serializeBody() as ArrayBuffer)).toEqual(
+      Uint8Array.of(65, 66),
+    );
+    pending.flush(null);
+    await response;
+  });
+
+  it('sends a web Request body as bytes and rejects it when over the limit', async () => {
+    const id = 'https://example.test/web-body';
+    const request = () =>
+      HttpClientRequest.fromWeb(new Request(id, { method: 'POST', body: 'ABC' }));
+    const response = Effect.runPromise(adapter.execute(request()));
+    const pending = await waitForRequest((req) => req.url === id);
+    expect(new Uint8Array(pending.request.serializeBody() as ArrayBuffer)).toEqual(
+      Uint8Array.of(65, 66, 67),
+    );
+    pending.flush(null);
+    await response;
+    const limited = createAngularHttpClient(TestBed.inject(HttpClient), {
+      maxBufferedRequestBodyBytes: 2,
+    });
+    await expect(Effect.runPromise(limited.execute(request()))).rejects.toMatchObject({
+      reason: { _tag: 'EncodeError', cause: expect.any(BufferedRequestBodyTooLargeError) },
+    });
+    controller.expectNone(id);
   });
 
   it('encodes JSON Uint8Array bodies as JSON text for Angular HttpClient', async () => {
@@ -549,6 +584,27 @@ describe('Angular HttpClient adapter request mapping', () => {
 });
 
 describe('Angular HttpClient adapter completion handling', () => {
+  it('unsubscribes from a synchronous interceptor after its first response', async () => {
+    const teardown = vi.fn();
+    TestBed.configureTestingModule({
+      providers: [
+        provideHttpClient(
+          withInterceptors([
+            () =>
+              new Observable((subscriber) => {
+                subscriber.next(new HttpResponse({ status: 201 }));
+                return teardown;
+              }),
+          ]),
+        ),
+      ],
+    });
+    const adapter = createAngularHttpClient(TestBed.inject(HttpClient));
+    const response = await Effect.runPromise(adapter.get('https://example.test/interceptor'));
+    expect(response.status).toBe(201);
+    expect(teardown).toHaveBeenCalledTimes(1);
+  });
+
   it('fails when an interceptor completes without emitting a response', async () => {
     TestBed.resetTestingModule();
     TestBed.configureTestingModule({

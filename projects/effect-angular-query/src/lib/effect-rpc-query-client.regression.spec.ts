@@ -98,7 +98,7 @@ const LifecyclePing = asRpcQuery(
 class LifecycleRpcs extends RpcGroup.make(LifecyclePing) {}
 
 class CustomPayload {
-  constructor(readonly id: string) {}
+  constructor(public id: string) {}
 }
 
 const CustomPayloadQuery = asRpcQuery(
@@ -275,7 +275,7 @@ describe('Effect RPC Angular client regressions', () => {
     expect(typeof client.finance.receipts.team.queryOptions).toBe('function');
   });
 
-  it('exposes a typed per-call encoder for custom payload query keys and options', () => {
+  it('exposes a typed per-call encoder for custom payload query keys and options', async () => {
     const factory = createEffectRpcAngularClient({
       group: CustomPayloadRpcs,
       rpcLayer: createProtocolLayer(),
@@ -294,6 +294,25 @@ describe('Effect RPC Angular client regressions', () => {
       ['custom', 'lookup'],
       { input: { id: 'custom-1' }, type: 'query' },
     ]);
+    const cache = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const options = client.custom.lookup.queryOptions(input, { inputEncoder });
+    const snapshots: CustomPayload[] = [];
+    const stable = client.custom.lookup.queryOptions(input, {
+      inputEncoder,
+      snapshotInput: (value) => {
+        const snapshot = new CustomPayload(value.id);
+        snapshots.push(snapshot);
+        return snapshot;
+      },
+    });
+    input.id = 'changed';
+    await expect(cache.fetchQuery(options)).rejects.toMatchObject({
+      reason: { message: expect.stringContaining('input changed') },
+    });
+    expect(cache.getQueryData(options.queryKey)).toBeUndefined();
+    expect(snapshots[0]?.id).toBe('custom-1');
+    expect(stable.queryKey).toEqual(options.queryKey);
+    cache.clear();
   });
 
   it('retains one scoped RPC client for the injector lifetime and releases it once', async () => {

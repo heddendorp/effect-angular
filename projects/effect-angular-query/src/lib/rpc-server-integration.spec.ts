@@ -1,4 +1,5 @@
 import { TestBed } from '@angular/core/testing';
+import { QueryClient } from '@tanstack/angular-query-experimental';
 import * as Effect from 'effect/Effect';
 import * as FileSystem from 'effect/FileSystem';
 import * as Layer from 'effect/Layer';
@@ -86,6 +87,14 @@ describe('Effect RPC Angular client integration with RpcServer', () => {
     expect(result).toEqual({ total: 3 });
     expect(observedTag).toBe('events.eventList');
 
+    const queryClient = new QueryClient();
+    const input = { limit: 4 };
+    const options = client.events.eventList.queryOptions(input);
+    input.limit = 9;
+    expect(await queryClient.fetchQuery(options)).toEqual({ total: 5 });
+    await queryClient.refetchQueries({ queryKey: options.queryKey });
+    expect(queryClient.getQueryData(options.queryKey)).toEqual({ total: 5 });
+    queryClient.clear();
     await webHandler.dispose();
   });
 });

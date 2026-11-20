@@ -100,9 +100,6 @@ try {
 
   writeFileSync(
     join(temporaryDirectory, 'tsconfig.json'),
-    // Effect 4 beta.97 currently has two internal declaration defects unrelated to these
-    // libraries: missing SchemaErrorTypeId and appendPreResponseHandlerUnsafe declarations.
-    // Keep public consumer usage checked while ng-packagr validates our generated declarations.
     `${JSON.stringify(
       {
         compilerOptions: {
@@ -110,7 +107,6 @@ try {
           module: 'NodeNext',
           moduleResolution: 'NodeNext',
           noEmit: true,
-          skipLibCheck: true,
           strict: true,
           target: 'ES2022',
           types: ['node'],

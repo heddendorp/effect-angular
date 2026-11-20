@@ -17,7 +17,7 @@ bun add @heddendorp/effect-platform-angular
 Install required peers in your app:
 
 ```bash
-bun add effect@4.0.0-beta.97
+bun add effect@^4.1.5
 ```
 
 ### Register the adapter
@@ -51,7 +51,7 @@ Provider order matters: register `provideHttpClient(...)` first, then `provideEf
 ```ts
 import { inject, Injectable } from '@angular/core';
 import * as Effect from 'effect/Effect';
-import { HttpClient } from 'effect/unstable/http';
+import { HttpClient } from 'effect/http';
 import { EFFECT_HTTP_CLIENT } from '@heddendorp/effect-platform-angular';
 
 @Injectable({ providedIn: 'root' })
@@ -112,7 +112,7 @@ import { inject, Injectable } from '@angular/core';
 import * as Effect from 'effect/Effect';
 import * as Layer from 'effect/Layer';
 import * as Schema from 'effect/Schema';
-import { Rpc, RpcClient, RpcClientError, RpcGroup } from 'effect/unstable/rpc';
+import { Rpc, RpcClient, RpcClientError, RpcGroup } from 'effect/rpc';
 import {
   EFFECT_RPC_PROTOCOL_HTTP_LAYER,
   UnsupportedRpcSerializationError,
@@ -193,4 +193,4 @@ export class AppRpcClient implements AppRpcPromiseClient {
 ## Compatibility
 
 - Angular 22.x (peer dependency range `^22.0.6`)
-- Effect v4 beta (`effect 4.0.0-beta.97`)
+- Effect v4 (`effect ^4.1.5`)

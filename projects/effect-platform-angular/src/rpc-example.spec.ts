@@ -6,8 +6,8 @@ import * as Effect from 'effect/Effect';
 import * as Exit from 'effect/Exit';
 import * as Layer from 'effect/Layer';
 import * as Schema from 'effect/Schema';
-import { HttpClient as EffectHttpClient } from 'effect/unstable/http';
-import { Rpc, RpcClient, RpcClientError, RpcGroup, RpcSerialization } from 'effect/unstable/rpc';
+import { HttpClient as EffectHttpClient } from 'effect/http';
+import { Rpc, RpcClient, RpcClientError, RpcGroup, RpcSerialization } from 'effect/rpc';
 
 import { createAngularHttpClient } from './lib/http-client-adapter';
 

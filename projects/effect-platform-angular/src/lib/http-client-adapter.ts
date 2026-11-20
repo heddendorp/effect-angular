@@ -10,7 +10,7 @@ import {
   HttpClientError,
   HttpClientRequest,
   HttpClientResponse,
-} from 'effect/unstable/http';
+} from 'effect/http';
 import * as Effect from 'effect/Effect';
 import * as Stream from 'effect/Stream';
 

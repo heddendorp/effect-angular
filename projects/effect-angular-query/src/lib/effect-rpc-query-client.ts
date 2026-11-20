@@ -19,7 +19,7 @@ import {
   type RpcGroup,
   type RpcMiddleware,
   RpcSchema,
-} from 'effect/unstable/rpc';
+} from 'effect/rpc';
 
 import { createRpcMutationOptions } from './rpc-mutation-options';
 import type { RpcMutationOptionsOverrides } from './rpc-mutation-options';
@@ -211,7 +211,9 @@ type SafeQueryDefaultKey =
   | 'experimental_prefetchInRender';
 
 export type EffectRpcAngularClientQueryDefaults = {
-  readonly [Key in SafeQueryDefaultKey]?: NonFunction<HeterogeneousQueryOptions[Key]>;
+  readonly [Key in Extract<SafeQueryDefaultKey, keyof HeterogeneousQueryOptions>]?: NonFunction<
+    HeterogeneousQueryOptions[Key]
+  >;
 };
 
 type HeterogeneousMutationOptions = RpcMutationOptionsOverrides<unknown, unknown, unknown, unknown>;
@@ -277,7 +279,7 @@ type RpcMiddlewareClientError<Current extends Rpc.Any> =
     ? Middleware['~ClientError']
     : never;
 
-export class RpcStreamUnsupportedError extends Schema.TaggedErrorClass<RpcStreamUnsupportedError>()(
+export class RpcStreamUnsupportedError extends Schema.TaggedError<RpcStreamUnsupportedError>()(
   'RpcStreamUnsupportedError',
   {
     procedureTag: Schema.String,
@@ -775,7 +777,10 @@ const createEffectRpcAngularClientInstance = <Rpcs extends RpcProcedureWithInten
         Current,
         RpcClientError.RpcClientError
       >;
-      return unaryClient(tag, input) as Effect.Effect<
+      return unaryClient(
+        tag,
+        input as Rpc.PayloadConstructor<Rpc.ExtractTag<Current, typeof tag>>,
+      ) as Effect.Effect<
         Rpc.SuccessExit<Current>,
         RpcProcedureError<Current>,
         Rpc.ServicesClient<Current>

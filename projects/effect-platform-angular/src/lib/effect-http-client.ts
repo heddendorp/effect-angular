@@ -6,7 +6,7 @@ import {
   makeEnvironmentProviders,
 } from '@angular/core';
 import * as Layer from 'effect/Layer';
-import { HttpClient as EffectHttpClient } from 'effect/unstable/http';
+import { HttpClient as EffectHttpClient } from 'effect/http';
 
 import { createAngularHttpClient, type EffectHttpClientOptions } from './http-client-adapter';
 

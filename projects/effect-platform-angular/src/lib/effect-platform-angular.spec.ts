@@ -18,7 +18,7 @@ import {
   HttpClient as EffectHttpClient,
   HttpClientError,
   HttpClientRequest,
-} from 'effect/unstable/http';
+} from 'effect/http';
 import { EMPTY } from 'rxjs';
 
 import { EFFECT_HTTP_CLIENT, provideEffectHttpClient } from './effect-http-client';

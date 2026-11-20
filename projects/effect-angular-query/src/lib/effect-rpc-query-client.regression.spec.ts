@@ -4,7 +4,14 @@ import * as Context from 'effect/Context';
 import * as Effect from 'effect/Effect';
 import * as Layer from 'effect/Layer';
 import * as Schema from 'effect/Schema';
-import { Rpc, RpcClient, RpcClientError, RpcGroup, RpcMiddleware } from 'effect/unstable/rpc';
+import {
+  Rpc,
+  RpcClient,
+  RpcClientError,
+  RpcGroup,
+  RpcMiddleware,
+  RpcSerialization,
+} from 'effect/rpc';
 
 import {
   asRpcMutation,
@@ -27,6 +34,7 @@ const createProtocolLayer = (
     RpcClient.Protocol.make(() =>
       Effect.succeed({
         send,
+        codecFor: RpcSerialization.json.codecFor,
         supportsAck: false,
         supportsTransferables: false,
       }),
@@ -101,10 +109,9 @@ const CustomPayloadQuery = asRpcQuery(
 );
 class CustomPayloadRpcs extends RpcGroup.make(CustomPayloadQuery) {}
 
-class RequiredClientError extends Schema.TaggedErrorClass<RequiredClientError>()(
-  'RequiredClientError',
-  { message: Schema.String },
-) {}
+class RequiredClientError extends Schema.TaggedError<RequiredClientError>()('RequiredClientError', {
+  message: Schema.String,
+}) {}
 
 class RequiredClientMiddleware extends RpcMiddleware.Service<
   RequiredClientMiddleware,
@@ -151,10 +158,9 @@ const ServicePing = asRpcQuery(
 );
 class ServiceRpcs extends RpcGroup.make(ServicePing) {}
 
-class ProtocolLayerError extends Schema.TaggedErrorClass<ProtocolLayerError>()(
-  'ProtocolLayerError',
-  { message: Schema.String },
-) {}
+class ProtocolLayerError extends Schema.TaggedError<ProtocolLayerError>()('ProtocolLayerError', {
+  message: Schema.String,
+}) {}
 
 describe('Effect RPC Angular client regressions', () => {
   it('preserves classification through RPC and RpcGroup composition and replaces old intent', () => {
@@ -296,6 +302,7 @@ describe('Effect RPC Angular client regressions', () => {
     const protocol = RpcClient.Protocol.make(() =>
       Effect.succeed({
         send: () => Effect.fail(createRpcClientError('Expected failure')),
+        codecFor: RpcSerialization.json.codecFor,
         supportsAck: false,
         supportsTransferables: false,
       }),

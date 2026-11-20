@@ -15,10 +15,10 @@ bun add @heddendorp/effect-angular-query
 Install required peers in your app:
 
 ```bash
-bun add @tanstack/angular-query-experimental effect@4.0.0-beta.97
+bun add @tanstack/angular-query-experimental effect@^4.1.5
 ```
 
-Requires Angular 22.x and Effect v4 beta (`effect 4.0.0-beta.97`).
+Requires Angular 22.x and Effect v4 (`effect ^4.1.5`).
 
 ## Setup
 
@@ -39,7 +39,7 @@ export const appConfig: ApplicationConfig = {
 import { ApplicationConfig } from '@angular/core';
 import * as Layer from 'effect/Layer';
 import * as Schema from 'effect/Schema';
-import { Rpc, RpcClient, RpcGroup } from 'effect/unstable/rpc';
+import { Rpc, RpcClient, RpcGroup } from 'effect/rpc';
 
 import {
   asRpcMutation,

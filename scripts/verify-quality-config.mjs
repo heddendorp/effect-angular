@@ -11,7 +11,7 @@ const workspace = readJson('angular.json');
 const scripts = manifest.scripts;
 const devDependencies = manifest.devDependencies;
 
-const vitestVersion = '4.1.10';
+const vitestVersion = '5.1.1';
 for (const dependency of ['vitest', '@vitest/browser-playwright', '@vitest/coverage-v8']) {
   assert.equal(
     devDependencies[dependency],

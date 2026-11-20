@@ -4,7 +4,6 @@ on:
   pull_request_target:
     types:
       - opened
-      - reopened
       - synchronize
     branches:
       - main
@@ -20,7 +19,8 @@ concurrency:
 jobs:
   clear-knope-label:
     if: >-
-      ${{ github.repository == 'heddendorp/effect-angular' &&
+      ${{ github.event.action == 'synchronize' &&
+          github.repository == 'heddendorp/effect-angular' &&
           github.event.pull_request.user.id == 49699333 &&
           github.event.pull_request.head.repo.full_name == github.repository &&
           startsWith(github.event.pull_request.head.ref, 'dependabot/') &&

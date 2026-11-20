@@ -78,6 +78,7 @@ require_text "${dependabot}" 'ref: ${{ github.event.pull_request.base.sha }}'
 require_text "${dependabot}" 'cancel-in-progress: false'
 require_text "${repo_root}/knope.toml" 'skip_labels = ["no package release"]'
 require_text "${dependabot}" 'needs: clear-knope-label'
+require_text "${dependabot}" "github.event.action == 'synchronize'"
 require_text "${dependabot}" "--remove-label 'no package release'"
 if grep -q 'target-branch:' "${dependabot_config}"; then
   fail 'Dependabot must keep the default target branch implicit for correct metadata directories'

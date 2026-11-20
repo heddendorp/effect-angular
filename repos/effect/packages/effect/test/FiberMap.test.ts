@@ -2,8 +2,117 @@ import { assert, describe, it } from "@effect/vitest"
 import { assertFalse, assertTrue, strictEqual } from "@effect/vitest/utils"
 import { Array, Deferred, Effect, Exit, Fiber, FiberMap, Option, pipe, Ref, Scope } from "effect"
 import { TestClock } from "effect/testing"
+import { assertRegistersDuringStartup } from "./utils/forkRegistration.ts"
+
+const makeWorker = Effect.gen(function*() {
+  const ready = yield* Deferred.make<void>()
+  const cleanups = yield* Ref.make(0)
+  const fiber = yield* Effect.forkScoped(
+    Deferred.succeed(ready, undefined).pipe(
+      Effect.andThen(Effect.never),
+      Effect.ensuring(Ref.update(cleanups, (n) => n + 1))
+    ),
+    { startImmediately: true }
+  )
+  yield* Deferred.await(ready)
+  return { fiber, cleanups }
+})
 
 describe("FiberMap", () => {
+  it.effect("run registers a fiber even when it interrupts its forker during startup", () =>
+    assertRegistersDuringStartup((work, scope) =>
+      FiberMap.make<string>().pipe(
+        Scope.provide(scope),
+        Effect.flatMap((container) => FiberMap.run(container, "key", work, { startImmediately: true }))
+      )
+    ))
+
+  it.effect("closing the scope waits for asynchronous cleanup of a replaced fiber", () =>
+    Effect.gen(function*() {
+      const events: Array<string> = []
+      const started = yield* Deferred.make<void>()
+      const release = yield* Deferred.make<void>()
+      const scope = yield* Scope.make()
+      yield* Scope.addFinalizer(scope, Effect.sync(() => events.push("resource released")))
+      const container = yield* FiberMap.make<string>().pipe(Scope.provide(scope))
+      const previous = yield* FiberMap.run(
+        container,
+        "key",
+        Deferred.succeed(started, undefined).pipe(
+          Effect.andThen(Effect.never),
+          Effect.onInterrupt(() =>
+            Deferred.await(release).pipe(
+              Effect.andThen(Effect.sync(() => events.push("worker cleanup done")))
+            )
+          )
+        )
+      )
+      yield* Deferred.await(started)
+      yield* FiberMap.run(container, "key", Effect.never)
+
+      const closing = yield* Effect.forkChild(Scope.close(scope, Exit.void), { startImmediately: true })
+      yield* Deferred.succeed(release, undefined)
+      yield* Fiber.join(closing)
+      yield* Fiber.await(previous)
+
+      assert.deepStrictEqual(events, ["worker cleanup done", "resource released"])
+    }))
+
+  it.effect("run defers startup", () =>
+    Effect.gen(function*() {
+      const container = yield* FiberMap.make<string>()
+      let started = false
+      const fiber = yield* FiberMap.run(
+        container,
+        "key",
+        Effect.sync(() => {
+          started = true
+        }),
+        { startImmediately: false }
+      )
+      assert.isFalse(started)
+      yield* Fiber.join(fiber)
+      assert.isTrue(started)
+    }))
+
+  it.effect("retains ownership of replacements made by a synchronous finalizer", () =>
+    Effect.gen(function*() {
+      const scope = yield* Scope.make()
+      const map = yield* FiberMap.make<string>().pipe(Scope.provide(scope))
+      const run = yield* FiberMap.runtime(map)()
+      const fibers: Array<Fiber.Fiber<unknown, unknown>> = []
+      yield* Effect.addFinalizer(() => Fiber.interruptAll(fibers))
+
+      const previous = run(
+        "key",
+        Effect.never.pipe(
+          Effect.ensuring(Effect.sync(() => {
+            fibers.push(run("key", Effect.never))
+          }))
+        )
+      )
+      const replacement = run("key", Effect.never)
+      fibers.push(previous, replacement)
+      assert.strictEqual(fibers.length, 3)
+
+      yield* Scope.close(scope, Exit.void)
+
+      for (const fiber of fibers) {
+        assert.isDefined(fiber.pollUnsafe())
+      }
+    }))
+
+  it.effect("removes a synchronously completed replacement", () =>
+    Effect.gen(function*() {
+      const map = yield* FiberMap.make<string>()
+      const previous = yield* FiberMap.run(map, "key", Effect.never)
+      const replacement = yield* FiberMap.run(map, "key", Effect.succeed("done"))
+
+      assert.deepStrictEqual(yield* Fiber.join(replacement), "done")
+      assert.isTrue(Exit.hasInterrupts(yield* Fiber.await(previous)))
+      assert.strictEqual(yield* FiberMap.size(map), 0)
+    }))
+
   it.effect("interrupts fibers", () =>
     Effect.gen(function*() {
       const ref = yield* Ref.make(0)
@@ -75,15 +184,17 @@ describe("FiberMap", () => {
       strictEqual(safeFiber.value, fiber)
     }))
 
-  it.effect("join", () =>
+  it.effect("join reports the first failure without interrupting siblings or closing the map", () =>
     Effect.gen(function*() {
       const map = yield* FiberMap.make<string>()
-      FiberMap.setUnsafe(map, "a", Effect.runFork(Effect.void))
-      FiberMap.setUnsafe(map, "b", Effect.runFork(Effect.void))
-      FiberMap.setUnsafe(map, "c", Effect.runFork(Effect.fail("fail")))
-      FiberMap.setUnsafe(map, "d", Effect.runFork(Effect.fail("ignored")))
-      const result = yield* pipe(FiberMap.join(map), Effect.flip)
-      strictEqual(result, "fail")
+      const release = yield* Deferred.make<void>()
+      const sibling = yield* FiberMap.run(map, "a", Deferred.await(release))
+      yield* FiberMap.run(map, "b", Effect.fail("fail"))
+      yield* FiberMap.run(map, "c", Effect.fail("ignored"))
+      strictEqual(yield* Effect.flip(FiberMap.join(map)), "fail")
+      const next = yield* FiberMap.run(map, "d", Deferred.succeed(release, undefined))
+      yield* Fiber.join(next)
+      yield* Fiber.join(sibling)
     }))
 
   it.effect("size", () =>
@@ -108,6 +219,34 @@ describe("FiberMap", () => {
       assertTrue(Exit.hasInterrupts(yield* Fiber.await(fiberC)))
       strictEqual(fiberA.pollUnsafe(), undefined)
     }))
+
+  it.effect("onlyIfMissing keeps the same registered fiber", () =>
+    Effect.gen(function*() {
+      const map = yield* FiberMap.make<string>()
+      const worker = yield* makeWorker
+      FiberMap.setUnsafe(map, "key", worker.fiber)
+      FiberMap.setUnsafe(map, "key", worker.fiber, { onlyIfMissing: true })
+
+      strictEqual(Option.getOrUndefined(FiberMap.getUnsafe(map, "key")), worker.fiber)
+      strictEqual(worker.fiber.pollUnsafe(), undefined)
+      strictEqual(yield* Ref.get(worker.cleanups), 0)
+    }))
+
+  for (const propagateInterruption of [false, true]) {
+    it.effect(`same-fiber registration preserves propagateInterruption: ${propagateInterruption}`, () =>
+      Effect.gen(function*() {
+        const map = yield* FiberMap.make<string>()
+        const worker = yield* makeWorker
+        FiberMap.setUnsafe(map, "key", worker.fiber, { propagateInterruption })
+        FiberMap.setUnsafe(map, "key", worker.fiber, {
+          onlyIfMissing: true,
+          propagateInterruption: !propagateInterruption
+        })
+
+        yield* Fiber.interrupt(worker.fiber)
+        strictEqual(yield* Deferred.isDone(map.deferred), propagateInterruption)
+      }))
+  }
 
   it.effect("runtime onlyIfMissing", () =>
     Effect.gen(function*() {
@@ -135,11 +274,13 @@ describe("FiberMap", () => {
   it.effect("propagateInterruption true", () =>
     Effect.gen(function*() {
       const map = yield* FiberMap.make<string>()
-      const fiber = yield* FiberMap.run(map, "a", Effect.never, {
-        propagateInterruption: true
-      })
-      yield* Effect.yieldNow
-      yield* Fiber.interrupt(fiber)
+      const release = yield* Deferred.make<void>()
+      const fiber = yield* Effect.uninterruptible(
+        FiberMap.run(map, "a", Deferred.await(release), { propagateInterruption: true })
+      )
+      fiber.interruptUnsafe()
+      yield* Deferred.succeed(release, undefined)
+      assertTrue(Exit.hasInterrupts(yield* Fiber.await(fiber)))
       assertTrue(Exit.hasInterrupts(
         yield* FiberMap.join(map).pipe(
           Effect.exit

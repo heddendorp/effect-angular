@@ -1,4 +1,5 @@
 import rule from "@effect/oxc/oxlint/rules/no-unused-internal"
+import { assert } from "@effect/vitest"
 import * as fs from "node:fs"
 import * as os from "node:os"
 import * as path from "node:path"
@@ -65,6 +66,28 @@ type Local = Internal
     expect(run(cwd, "packages/foo/src/Internal.ts")).toEqual([])
   })
 
+  it("counts literal dynamic imports as usage of only the resolved module", () => {
+    const cwd = writeFixture({
+      "packages/foo/src/internal/lazy.ts": `/** @internal */
+export const first = 1
+
+/** @internal */
+export const second = 2
+`,
+      "packages/foo/src/internal/unrelated.ts": `/** @internal */
+export const first = 1
+`,
+      "packages/foo/src/Consumer.ts": `export const load = () => import("./internal/lazy.ts")
+export const unknown = (specifier: string) => import(specifier)
+`
+    })
+
+    assert.deepStrictEqual(run(cwd, "packages/foo/src/internal/lazy.ts"), [])
+    assert.deepStrictEqual(run(cwd, "packages/foo/src/internal/unrelated.ts"), [
+      `@internal export "first" is not used by production sources`
+    ])
+  })
+
   it("reports @internal exports used in public exported type signatures", () => {
     const cwd = writeFixture({
       "packages/foo/src/Internal.ts": `/** @internal */
@@ -82,6 +105,21 @@ export interface Public {
 
     expect(run(cwd, "packages/foo/src/Public.ts")).toEqual([
       `Do not reference @internal export "Internal" in a public exported type signature`
+    ])
+    expect(run(cwd, "packages/foo/src/Internal.ts")).toEqual([])
+  })
+
+  it("reports public re-exports of @internal exports", () => {
+    const cwd = writeFixture({
+      "packages/foo/src/Internal.ts": `/** @internal */
+export const internal = 1
+`,
+      "packages/foo/src/Public.ts": `export { internal } from "./Internal.ts"
+`
+    })
+
+    expect(run(cwd, "packages/foo/src/Public.ts")).toEqual([
+      `Do not re-export @internal export "internal" from a public module`
     ])
     expect(run(cwd, "packages/foo/src/Internal.ts")).toEqual([])
   })

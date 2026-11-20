@@ -5,6 +5,7 @@
  * back as a layer or scoped effect, and supports invalidation so later users can
  * acquire a fresh context.
  *
+ * @stability unstable
  * @since 4.0.0
  */
 import * as Context from "./Context.ts"
@@ -37,6 +38,7 @@ const TypeId = "~effect/LayerRef"
  * @see {@link make} for constructing a `LayerRef` from a layer
  * @see {@link Service} for defining a `LayerRef` as a service class
  *
+ * @stability unstable
  * @category models
  * @since 4.0.0
  */
@@ -92,9 +94,8 @@ export interface LayerRef<in out I, in out E = never> {
  *
  * **Example** (Sharing one layer-built service)
  *
- * ```ts
- * import { Context, Effect, Layer } from "effect"
- * import { make } from "effect/LayerRef"
+ * ```ts import.meta.vitest
+ * import { Context, Effect, Layer, LayerRef } from "effect"
  *
  * class Database extends Context.Service<Database, {
  *   readonly query: Effect.Effect<string>
@@ -111,7 +112,7 @@ export interface LayerRef<in out I, in out E = never> {
  *
  * const program = Effect.scoped(
  *   Effect.gen(function*() {
- *     const ref = yield* make(databaseLayer, {
+ *     const ref = yield* LayerRef.make(databaseLayer, {
  *       idleTimeToLive: "5 seconds"
  *     })
  *
@@ -122,15 +123,18 @@ export interface LayerRef<in out I, in out E = never> {
  *     return result
  *   })
  * )
+ *
+ * await Effect.runPromise(program) // => "result"
  * ```
  *
  * @see {@link Service} for defining a reusable service class around a `LayerRef`
  *
+ * @stability unstable
  * @category constructors
  * @since 4.0.0
  */
 export const make = Effect.fnUntraced(
-  function*<I, E, R, X, const Preload extends boolean = never, SE = never, SR = never>(
+  function*<I, E, R, X, const Preload extends boolean = false, SE = never, SR = never>(
     layer: Layer.Layer<I, E, R>,
     options?: {
       /**
@@ -207,6 +211,7 @@ export const make = Effect.fnUntraced(
  *
  * @see {@link Service} for creating concrete `LayerRef` service classes
  *
+ * @stability unstable
  * @category services
  * @since 4.0.0
  */
@@ -271,9 +276,8 @@ export interface TagClass<
  *
  * **Example** (Defining a refreshable service)
  *
- * ```ts
- * import { Context, Effect, Layer } from "effect"
- * import { Service } from "effect/LayerRef"
+ * ```ts import.meta.vitest
+ * import { Context, Effect, Layer, LayerRef } from "effect"
  *
  * class Database extends Context.Service<Database, {
  *   readonly query: Effect.Effect<string>
@@ -283,7 +287,7 @@ export interface TagClass<
  *   query: Effect.succeed("result")
  * })
  *
- * class DatabaseRef extends Service<DatabaseRef>()("DatabaseRef", {
+ * class DatabaseRef extends LayerRef.Service<DatabaseRef>()("DatabaseRef", {
  *   layer: databaseLayer,
  *   preload: true
  * }) {}
@@ -295,10 +299,13 @@ export interface TagClass<
  *   Effect.provide(DatabaseRef.get),
  *   Effect.provide(DatabaseRef.layer)
  * )
+ *
+ * await Effect.runPromise(program) // => "result"
  * ```
  *
  * @see {@link make} for creating a `LayerRef` value without defining a service class
  *
+ * @stability unstable
  * @category services
  * @since 4.0.0
  */
@@ -310,7 +317,7 @@ export const Service = <Self>() =>
   R,
   X,
   const Deps extends ReadonlyArray<Layer.Layer<any, any, any>> = [],
-  const Preload extends boolean = never,
+  const Preload extends boolean = false,
   SE = never,
   SR = never
 >(
@@ -347,11 +354,13 @@ export const Service = <Self>() =>
   [Preload] extends [true] ? E : never,
   Deps[number]
 > => {
-  const Err = globalThis.Error as any
   const limit = getStackTraceLimit()
-  setStackTraceLimit(2)
-  const creationError = new Err()
-  setStackTraceLimit(limit)
+  let creationError: Error | undefined
+  if (limit !== 0) {
+    setStackTraceLimit(2)
+    creationError = new globalThis.Error()
+    setStackTraceLimit(limit)
+  }
 
   function TagClass() {}
   const TagClass_ = TagClass as any as Mutable<TagClass<Self, Id, any, any, any, any, any>>
@@ -359,7 +368,7 @@ export const Service = <Self>() =>
   TagClass.key = id
   Object.defineProperty(TagClass, "stack", {
     get() {
-      return creationError.stack
+      return creationError?.stack
     }
   })
 

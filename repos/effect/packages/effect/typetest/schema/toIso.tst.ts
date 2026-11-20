@@ -1,9 +1,9 @@
 import type { Brand, Cause, Exit, Optic, Option } from "effect"
-import { Data, Schema, SchemaUtils } from "effect"
+import { Schema } from "effect"
 import { describe, expect, it } from "tstyche"
 
 class Value extends Schema.Class<Value, { readonly brand: unique symbol }>("Value")({
-  a: Schema.DateValid
+  a: Schema.Date
 }) {}
 
 describe("toIso", () => {
@@ -34,6 +34,18 @@ describe("toIso", () => {
       const optic = Schema.toIso(schema)
 
       expect(optic).type.toBe<Optic.Iso<number & Brand.Brand<"positive">, number & Brand.Brand<"positive">>>()
+    })
+
+    it("Struct with a Class field", () => {
+      const schema = Schema.Struct({ value: Value }).pipe(Schema.brand("b"))
+      const optic = Schema.toIso(schema)
+
+      expect(optic).type.toBe<
+        Optic.Iso<
+          { readonly value: Value } & Brand.Brand<"b">,
+          { readonly value: { readonly a: Date } } & Brand.Brand<"b">
+        >
+      >()
     })
   })
 
@@ -135,6 +147,18 @@ describe("toIso", () => {
     expect(optic).type.toBe<Optic.Iso<string | Value, string | { readonly a: Date }>>()
   })
 
+  it("TaggedUnion", () => {
+    const schema = Schema.TaggedUnion({ A: { value: Value } })
+    const optic = Schema.toIso(schema)
+
+    expect(optic).type.toBe<
+      Optic.Iso<
+        { readonly _tag: "A"; readonly value: Value },
+        { readonly _tag: "A"; readonly value: { readonly a: Date } }
+      >
+    >()
+  })
+
   it("suspend", () => {
     interface A {
       readonly a: Value
@@ -218,7 +242,7 @@ describe("toIso", () => {
           }
         } | {
           readonly _tag: "Die"
-          readonly error: {
+          readonly defect: {
             readonly a: Date
           }
         } | {
@@ -239,19 +263,19 @@ it("Cause", () => {
   >()
 })
 
-it("Error", () => {
-  const schema = Schema.Error()
+it("ErrorInstance", () => {
+  const schema = Schema.ErrorInstance()
   const optic = Schema.toIso(schema)
 
   expect(optic).type.toBe<Optic.Iso<Error, Error>>()
 })
 
 it("Exit", () => {
-  const schema = Schema.Exit(Value, Schema.Error(), Schema.Defect())
+  const schema = Schema.Exit(Value, Schema.ErrorInstance(), Schema.Defect())
   const optic = Schema.toIso(schema)
 
   expect(optic).type.toBe<
-    Optic.Iso<Exit.Exit<Value, Error>, Schema.ExitIso<typeof Value, Schema.Error, Schema.Defect>>
+    Optic.Iso<Exit.Exit<Value, Error>, Schema.ExitIso<typeof Value, Schema.ErrorInstance, Schema.Defect>>
   >()
 })
 
@@ -261,22 +285,5 @@ it("ReadonlyMap", () => {
 
   expect(optic).type.toBe<
     Optic.Iso<ReadonlyMap<string, Value>, ReadonlyArray<readonly [string, { readonly a: Date }]>>
-  >()
-})
-
-it("getNativeClassSchema", () => {
-  const Props = Schema.Struct({
-    message: Schema.String
-  })
-  class Err extends Data.Error<typeof Props.Type> {
-    constructor(props: typeof Props.Type) {
-      super(Props.make(props))
-    }
-  }
-  const schema = SchemaUtils.getNativeClassSchema(Err, { encoding: Props })
-  const optic = Schema.toIso(schema)
-
-  expect(optic).type.toBe<
-    Optic.Iso<Err, { readonly message: string }>
   >()
 })

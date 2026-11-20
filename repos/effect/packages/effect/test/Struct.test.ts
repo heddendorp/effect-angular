@@ -1,7 +1,8 @@
+import { assert, describe, it } from "@effect/vitest"
 import { Equivalence, Number, pipe, Schema, String, String as Str, Struct, UndefinedOr } from "effect"
 import { TestSchema } from "effect/testing"
-import { describe, it } from "vitest"
 import { assertFalse, assertTrue, deepStrictEqual, strictEqual } from "./utils/assert.ts"
+import { withIgnoredProperties } from "./utils/structFields.ts"
 
 const equals = TestSchema.Asserts.ast.fields.equals
 
@@ -32,6 +33,12 @@ describe("Struct", () => {
       deepStrictEqual(pipe(s, Struct.pick(["a", "b"])), { b: 1 })
       deepStrictEqual(Struct.pick(s, ["a", "b"]), { b: 1 })
     })
+
+    it("numeric properties", () => {
+      const s: { 1: string; 2: number } = { 1: "a", 2: 1 }
+      deepStrictEqual(pipe(s, Struct.pick([1])), { 1: "a" })
+      deepStrictEqual(Struct.pick(s, [1]), { 1: "a" })
+    })
   })
 
   describe("omit", () => {
@@ -47,13 +54,17 @@ describe("Struct", () => {
       deepStrictEqual(Struct.omit(s, ["c"]), { b: 1 })
     })
 
-    it("ignores non-enumerable properties", () => {
-      const hidden = Symbol.for("hidden")
-      const s = { a: "a" }
-      Object.defineProperty(s, "b", { value: 1, enumerable: false })
-      Object.defineProperty(s, hidden, { value: true, enumerable: false })
+    it("numeric properties", () => {
+      const s: { 1: string; 2: number } = { 1: "a", 2: 1 }
+      deepStrictEqual(pipe(s, Struct.omit([2])), { 1: "a" })
+      deepStrictEqual(Struct.omit(s, [2]), { 1: "a" })
+    })
 
-      deepStrictEqual(Struct.omit(s, []), { a: "a" })
+    it("copies only enumerable own string and symbol properties", () => {
+      const key = Symbol("key")
+      const input = withIgnoredProperties({ a: 1, [key]: 2 })
+
+      assert.deepStrictEqual(Struct.omit(input, []), { a: 1, [key]: 2 })
     })
   })
 
@@ -125,6 +136,16 @@ describe("Struct", () => {
     )
   })
 
+  it("mapPick numeric properties", () => {
+    equals(
+      Struct.mapPick({ 1: Schema.String, 2: Schema.Number }, [1], Schema.NullOr),
+      {
+        1: Schema.NullOr(Schema.String),
+        2: Schema.Number
+      }
+    )
+  })
+
   it("mapOmit", () => {
     equals(
       pipe({ a: Schema.String, b: Schema.Number }, Struct.mapOmit(["b"], Schema.NullOr)),
@@ -142,6 +163,16 @@ describe("Struct", () => {
     )
   })
 
+  it("mapOmit numeric properties", () => {
+    equals(
+      Struct.mapOmit({ 1: Schema.String, 2: Schema.Number }, [2], Schema.NullOr),
+      {
+        1: Schema.NullOr(Schema.String),
+        2: Schema.Number
+      }
+    )
+  })
+
   it("makeEquivalence compares structs by configured fields", () => {
     const PersonEquivalence = Struct.makeEquivalence({
       a: Equivalence.strictEqual<string>(),
@@ -153,6 +184,17 @@ describe("Struct", () => {
   })
 
   describe("makeCombiner", () => {
+    it("discovers enumerable own fields and reads non-enumerable input fields", () => {
+      const key = Symbol("key")
+      const combiner = Struct.makeCombiner(withIgnoredProperties({ a: Number.ReducerSum, [key]: Number.ReducerSum }))
+      const input = Object.defineProperties({ a: 1, [key]: 2 }, {
+        a: { enumerable: false },
+        [key]: { enumerable: false }
+      })
+
+      assert.deepStrictEqual(combiner.combine(input, { a: 3, [key]: 4 }), { a: 4, [key]: 6 })
+    })
+
     it("default omitKeyWhen (never omit)", () => {
       const C = Struct.makeCombiner({
         n: Number.ReducerSum,
@@ -201,6 +243,14 @@ describe("Struct", () => {
   })
 
   describe("makeReducer", () => {
+    it("uses enumerable own string and symbol fields for its initial value and combination", () => {
+      const key = Symbol("key")
+      const reducer = Struct.makeReducer(withIgnoredProperties({ a: Number.ReducerSum, [key]: Number.ReducerSum }))
+
+      assert.deepStrictEqual(reducer.initialValue, { a: 0, [key]: 0 })
+      assert.deepStrictEqual(reducer.combineAll([{ a: 1, [key]: 2 }, { a: 3, [key]: 4 }]), { a: 4, [key]: 6 })
+    })
+
     it("custom omitKeyWhen", () => {
       const R = Struct.makeReducer<{ n: number; s?: string | undefined }>(
         {

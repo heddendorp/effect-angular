@@ -79,7 +79,17 @@ require_text "${dependabot}" 'cancel-in-progress: false'
 if grep -q 'target-branch:' "${dependabot_config}"; then
   fail 'Dependabot must keep the default target branch implicit for correct metadata directories'
 fi
-require_text "${dependabot_config}" "- 'repos/effect/**'"
+require_text "${dependabot_config}" "- 'repos/**'"
+
+npm_update_config="$(awk '
+  /^  - package-ecosystem:/ { in_npm = ($3 == "\047npm\047") }
+  in_npm { print }
+' "${dependabot_config}")"
+if ! grep -Fxq "      - '/repos/**/*'" <<< "${npm_update_config}" ||
+   ! grep -Fxq '    open-pull-requests-limit: 0' <<< "${npm_update_config}" ||
+   ! grep -Fxq "      - dependency-name: '*'" <<< "${npm_update_config}"; then
+  fail 'Dependabot npm updates must ignore all dependencies under the vendored repositories'
+fi
 
 push_step_line="$(grep -n -- '- name: Commit generated changeset' "${dependabot_automerge}" | cut -d: -f1 || true)"
 if [[ -z "${push_step_line}" ]]; then

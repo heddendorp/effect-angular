@@ -4,9 +4,9 @@ version: 2
 updates:
   - package-ecosystem: 'bun'
     directory: '/'
-    # repos/effect is read-only upstream reference material, not part of this workspace.
+    # Vendored repositories are read-only upstream references.
     exclude-paths:
-      - 'repos/effect/**'
+      - 'repos/**'
     schedule:
       interval: 'weekly'
       day: 'tuesday'
@@ -51,6 +51,16 @@ updates:
         update-types:
           - 'patch'
           - 'minor'
+
+  # GitHub reports security updates for vendored pnpm manifests under the npm ecosystem.
+  - package-ecosystem: 'npm'
+    directories:
+      - '/repos/**/*'
+    schedule:
+      interval: 'weekly'
+    open-pull-requests-limit: 0
+    ignore:
+      - dependency-name: '*'
 
   - package-ecosystem: 'github-actions'
     directory: '/'
